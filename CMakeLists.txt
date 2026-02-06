@@ -29,8 +29,49 @@ endforeach()
 
 include_directories(include)
 
+# ------------------------------------- Plugins -------------------------------------- #
+add_library(call_set_bool_service_bt_node SHARED
+            src/plugins/action/call_set_bool_service_node.cpp)
+list(APPEND plugin_libs call_set_bool_service_bt_node)
+
+add_library(call_trigger_service_bt_node SHARED
+            src/plugins/action/call_trigger_service_node.cpp)
+list(APPEND plugin_libs call_trigger_service_bt_node)
+# ------------------------------------- End plugins =--------------------------------- #
+
+foreach(bt_plugin ${plugin_libs})
+  target_compile_definitions(${bt_plugin} PRIVATE BT_PLUGIN_EXPORT)
+  ament_target_dependencies(${bt_plugin} ${PACKAGE_DEPENDENCIES})
+endforeach()
+
+add_executable(safety_orchestrator_node src/safety_orchestrator_main.cpp)
+
+ament_target_dependencies(
+    safety_orchestrator_node
+    behaviortree_cpp_v3
+    geometry_msgs
+    rover_msgs
+    rover_utils
+    rclcpp
+    sensor_msgs
+    std_msgs
+    tf2_geometry_msgs
+)
+
+generate_parameter_library(safety_orchestrator_parameters
+                           src/safety_orchestrator_parameters.yaml)
+target_link_libraries(safety_orchestrator_node ${plugin_libs}
+                      safety_orchestrator_parameters)
+
+install(TARGETS ${plugin_libs} DESTINATION lib)
+
+install(TARGETS safety_orchestrator_node
+        DESTINATION lib/${PROJECT_NAME}
+)
+
 install(DIRECTORY behavior_trees config launch
-        DESTINATION share/${PROJECT_NAME})
+        DESTINATION share/${PROJECT_NAME}
+)
 
 install(DIRECTORY include/ DESTINATION include/${PROJECT_NAME})
 

@@ -57,7 +57,7 @@ def generate_launch_description():
         default_value=PathJoinSubstitution(
             [rover_orchestrator_pkg, "behavior_trees", "SafetyBT.btproj"]
         ),
-        description="Path to BehaviorTree project file, responsible for safety and shutdown management.",
+        description="Path to BehaviorTree project file, responsible for safety and shutdown orchestrator.",
     )
 
     shutdown_hosts_config_path = LaunchConfiguration("shutdown_hosts_config_path")
@@ -80,10 +80,10 @@ def generate_launch_description():
         description="Whether simulation is used",
     )
 
-    safety_manager_node = Node(
+    safety_orchestrator_node = Node(
         package="rover_orchestrator",
-        executable="safety_manager_node",
-        name="safety_manager",
+        executable="safety_orchestrator_node",
+        name="safety_orchestrator_node",
         parameters=[
             PathJoinSubstitution([rover_orchestrator_pkg, "config", "safety_manager.yaml"]),
             {
@@ -110,7 +110,7 @@ def generate_launch_description():
         declare_namespace_arg,
         declare_shutdown_hosts_config_path_arg,
         declare_use_sim_arg,
-        safety_manager_node,
+        safety_orchestrator_node,
     ]
 
     return LaunchDescription(actions)
