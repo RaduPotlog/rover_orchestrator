@@ -13,6 +13,7 @@
   <depend>generate_parameter_library</depend>
   <depend>geometry_msgs</depend>
   <depend>rover_msgs</depend>
+  <depend>rover_utils</depend>
   <depend>iputils-ping</depend>
   <depend>libboost-dev</depend>
   <depend>openssl</depend>
