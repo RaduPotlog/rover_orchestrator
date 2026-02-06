@@ -68,8 +68,8 @@ protected:
     BT::BehaviorTreeFactory factory_;
     std::unique_ptr<BehaviorTreeOrchestrator> safety_tree_orchestrator_;
 
-    std::shared_ptr<safety_manager::ParamListener> param_listener_;
-    safety_manager::Params params_;
+    std::shared_ptr<safety_orchestrator::ParamListener> param_listener_;
+    safety_orchestrator::Params params_;
 
 private:
     

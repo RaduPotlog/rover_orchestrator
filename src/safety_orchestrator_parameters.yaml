@@ -1,4 +1,4 @@
-safety_manager:
+safety_orchestrator:
   battery:
     temp:
       window_len:

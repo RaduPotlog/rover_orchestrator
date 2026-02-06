@@ -58,6 +58,7 @@ public:
     inline void init(BT::BehaviorTreeFactory & factory)
     {
         auto config = createBTConfig(initial_blackboard_);
+
         tree_ = factory.createTree(tree_name_, config.blackboard);
 
         const auto max_port = 65535;

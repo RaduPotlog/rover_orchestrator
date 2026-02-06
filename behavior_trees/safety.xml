@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<root BTCPP_format="4">
+<root BTCPP_format="4" main_tree_to_execute="Safety">
   <BehaviorTree ID="Safety">
     <Sequence>
       <Sequence name="BatteryOverheatSequence"
                 _skipIf="battery_health != POWER_SUPPLY_HEALTH_OVERHEAT">
-        <Sequence name="FatalBatTempSequence"
+        <!-- <Sequence name="FatalBatTempSequence"
                   _skipIf="bat_temp &lt;= FATAL_BAT_TEMP">
           <SignalShutdown reason="Fatal battery temperature"/>
-        </Sequence>
+        </Sequence> -->
         <Sequence name="HighBatTempSequence"
                   _skipIf="bat_temp &gt; FATAL_BAT_TEMP">
           <Sequence name="CriticalBatTempSequence"
@@ -26,23 +26,23 @@
                               _skipIf="fan_state"/>
         </Sequence>
       </Sequence>
-      <Sequence name="BatteryDeadSequence"
+      <!-- <Sequence name="BatteryDeadSequence"
                 _skipIf="battery_health != POWER_SUPPLY_HEALTH_DEAD">
         <SignalShutdown reason="Battery dead"/>
-      </Sequence>
+      </Sequence> -->
       <Sequence name="BatteryOvervoltageSequence"
                 _skipIf="battery_health != POWER_SUPPLY_HEALTH_OVERVOLTAGE">
         <CallTriggerService name="TriggerEStop"
                             service_name="hardware/e_stop_trigger"
                             _skipIf="e_stop_state"/>
       </Sequence>
-      <RunOnce name="TurnOnFunAtStartup"
+      <!-- <RunOnce name="TurnOnFunAtStartup"
                then_skip="true">
         <CallSetBoolService name="EnableFan"
                             data="true"
                             service_name="hardware/fan_enable"/>
-      </RunOnce>
-      <TickAfterTimeout name="FanOffWithHysteresis"
+      </RunOnce> -->
+      <!-- <TickAfterTimeout name="FanOffWithHysteresis"
                         timeout="{FAN_TURN_OFF_TIMEOUT}">
         <Sequence>
           <Sequence name="HighSysTempSequence"
@@ -61,7 +61,7 @@
 || battery_health == POWER_SUPPLY_HEALTH_OVERHEAT \
 || (!fan_state)"/>
         </Sequence>
-      </TickAfterTimeout>
+      </TickAfterTimeout> -->
     </Sequence>
   </BehaviorTree>
 
@@ -76,14 +76,14 @@
             editable="true">
       <input_port name="service_name">ROS service name</input_port>
     </Action>
-    <Action ID="SignalShutdown"
+    <!-- <Action ID="SignalShutdown"
             editable="true">
       <input_port name="reason">reason to shutdown robot</input_port>
-    </Action>
-    <Decorator ID="TickAfterTimeout"
+    </Action> -->
+    <!-- <Decorator ID="TickAfterTimeout"
                editable="true">
       <input_port name="timeout">time in s to wait before ticking child again</input_port>
-    </Decorator>
+    </Decorator> -->
   </TreeNodesModel>
 
 </root>

@@ -26,6 +26,9 @@
 
 #include "rclcpp/rclcpp.hpp"
 
+#include "rover_orchestrator/plugins/action/call_set_bool_service_node.hpp"
+#include "rover_orchestrator/plugins/action/call_trigger_service_node.hpp"
+
 namespace rover_orchestrator
 {
 
@@ -37,13 +40,13 @@ SafetyOrchestratorNode::SafetyOrchestratorNode(
     RCLCPP_INFO(this->get_logger(), "Constructing node.");
 
     this->param_listener_ =
-        std::make_shared<safety_manager::ParamListener>(this->get_node_parameters_interface());
+        std::make_shared<safety_orchestrator::ParamListener>(this->get_node_parameters_interface());
     
     this->params_ = this->param_listener_->get_params();
 
     const auto safety_initial_blackboard = createSafetyInitialBlackboard();
     safety_tree_orchestrator_ = std::make_unique<BehaviorTreeOrchestrator>(
-        "SafetyOrchestrator", safety_initial_blackboard, 6666);
+        "Safety", safety_initial_blackboard, 6666);
     
     RCLCPP_INFO(this->get_logger(), "Node constructed successfully.");
 }
@@ -96,8 +99,9 @@ void SafetyOrchestratorNode::registerBehaviorTree()
     // auto server_timeout_s = std::chrono::duration<double>(service_response_timeout);
     // params.server_timeout = std::chrono::duration_cast<std::chrono::milliseconds>(server_timeout_s);
 
-    // behavior_tree_utils::registerBehaviorTree(
-    //     factory_, bt_project_path, plugin_libs, params, ros_plugin_libs);
+    factory_.registerNodeType<CallTriggerService>("CallTriggerService");
+    factory_.registerNodeType<CallSetBoolService>("CallSetBoolService");
+    factory_.registerBehaviorTreeFromFile(bt_project_path);
 
     RCLCPP_INFO_STREAM(this->get_logger(), "BehaviorTree registered from path '" << bt_project_path << "'");
 }
