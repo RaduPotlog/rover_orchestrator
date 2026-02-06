@@ -9,8 +9,6 @@ set(PACKAGE_DEPENDENCIES
     ament_cmake
     ament_index_cpp
     behaviortree_cpp_v3
-    navigation2
-    nav2_bringup
     generate_parameter_library
     geometry_msgs
     rover_msgs
@@ -21,8 +19,6 @@ set(PACKAGE_DEPENDENCIES
     sensor_msgs
     std_msgs
     std_srvs
-    nav_msgs
-    nav2_msgs
     tf2_geometry_msgs
     yaml-cpp
 )
