@@ -24,9 +24,23 @@
 #include "rclcpp/rclcpp.hpp"
 
 #include <std_srvs/srv/set_bool.hpp>
+#include "sensor_msgs/msg/battery_state.hpp"
+
+#include "rover_msgs/msg/gpio_state.hpp"
+#include "rover_msgs/msg/rover_driver_state.hpp"
+#include "rover_msgs/msg/system_status.hpp"
+
+#include "rover_orchestrator/behavior_tree_orchestrator.hpp"
+#include "rover_orchestrator/safety_orchestrator_parameters.hpp"
 
 namespace rover_orchestrator
 {
+
+using BatteryStateMsg = sensor_msgs::msg::BatteryState;
+using BoolMsg = std_msgs::msg::Bool;
+using RoverDriverStateMsg = rover_msgs::msg::RoverDriverState;
+using IOStateMsg = rover_msgs::msg::GpioState;
+using SystemStatusMsg = rover_msgs::msg::SystemStatus;
 
 class SafetyOrchestratorNode : public rclcpp::Node
 {
@@ -35,24 +49,49 @@ public:
 
     SafetyOrchestratorNode(
         const std::string & node_name, 
-        const rclcpp::NodeOptions & options = rclcpp::NodeOptions())
-    : Node(node_name, options)
-    {
-        RCLCPP_INFO(this->get_logger(), "Constructing node.");
-    }
+        const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
+    
+    ~SafetyOrchestratorNode();
 
-    ~SafetyOrchestratorNode() 
-    {
+    void init();
 
-    }
+protected:
 
-    void init() 
-    {
+    void declareParameters();
+    
+    void registerBehaviorTree();
+    
+    std::map<std::string, std::any> createSafetyInitialBlackboard();
 
-    }
+    bool systemReady();
+
+    BT::BehaviorTreeFactory factory_;
+    std::unique_ptr<BehaviorTreeOrchestrator> safety_tree_orchestrator_;
+
+    std::shared_ptr<safety_manager::ParamListener> param_listener_;
+    safety_manager::Params params_;
 
 private:
+    
+    static constexpr float kCriticalBatteryTemp = 50.0;
+    static constexpr float kFatalBatteryTemp = 60.0;
+    static constexpr char kShutdownLocalhostCommand[] =
+        "dbus-send --system --print-reply --dest=org.freedesktop.login1 /org/freedesktop/login1 "
+        "org.freedesktop.login1.Manager.PowerOff boolean:true";
 
+    void batterySubscriberCallback(const BatteryStateMsg::SharedPtr battery);
+    void systemStatusSubscriberCallback(const SystemStatusMsg::SharedPtr system_status);
+    void safetyTreeTimerCallback();
+
+    rclcpp::Subscription<BatteryStateMsg>::SharedPtr battery_sub_;
+    rclcpp::Subscription<RoverDriverStateMsg>::SharedPtr driver_state_sub_;
+    rclcpp::Subscription<BoolMsg>::SharedPtr e_stop_sub_;
+    rclcpp::Subscription<IOStateMsg>::SharedPtr io_state_sub_;
+    rclcpp::Subscription<SystemStatusMsg>::SharedPtr system_status_sub_;
+    rclcpp::TimerBase::SharedPtr safety_tree_timer_;
+    
+    double battery_temp_{0.0};
+    double cpu_temp_{0.0};
 };
 
 }  // namespace rover_orchestrator

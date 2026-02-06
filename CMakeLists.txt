@@ -44,7 +44,9 @@ foreach(bt_plugin ${plugin_libs})
   ament_target_dependencies(${bt_plugin} ${PACKAGE_DEPENDENCIES})
 endforeach()
 
-add_executable(safety_orchestrator_node src/safety_orchestrator_main.cpp)
+add_executable(safety_orchestrator_node src/safety_orchestrator_main.cpp
+                                        src/safety_orchestrator_node.cpp
+)
 
 ament_target_dependencies(
     safety_orchestrator_node
