@@ -21,7 +21,7 @@ foreach(PACKAGE IN ITEMS ${DEPENDENCIES})
 endforeach()
 
 # Rest of the files
-install(DIRECTORY config launch map
+install(DIRECTORY behavior_trees config launch map
     DESTINATION share/${PROJECT_NAME}
 )
 
