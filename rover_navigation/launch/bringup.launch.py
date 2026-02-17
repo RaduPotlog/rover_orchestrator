@@ -78,9 +78,9 @@ def generate_launch_description():
 
     declare_robot_model_arg = DeclareLaunchArgument(
         "robot_model",
-        default_value=EnvironmentVariable(name="ROBOT_MODEL_NAME", default_value="panther"),
+        default_value=EnvironmentVariable(name="ROBOT_MODEL_NAME", default_value="rover-a1"),
         description="Specify robot model",
-        choices=["lynx", "panther"],
+        choices=["rover-a1"],
     )
     declare_slam_arg = DeclareLaunchArgument(
         "slam", default_value="False", description="Whether run a SLAM."
