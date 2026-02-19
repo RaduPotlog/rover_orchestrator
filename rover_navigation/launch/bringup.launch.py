@@ -78,9 +78,9 @@ def generate_launch_description():
 
     declare_robot_model_arg = DeclareLaunchArgument(
         "robot_model",
-        default_value=EnvironmentVariable(name="ROBOT_MODEL_NAME", default_value="rover-a1"),
+        default_value=EnvironmentVariable(name="ROBOT_MODEL_NAME", default_value="rover_a1"),
         description="Specify robot model",
-        choices=["rover-a1"],
+        choices=["rover_a1"],
     )
     declare_slam_arg = DeclareLaunchArgument(
         "slam", default_value="False", description="Whether run a SLAM."
@@ -123,22 +123,14 @@ def generate_launch_description():
         ]
     )
 
-    bb_padding = 0.03  # increase slighte footprint for safety
+    bb_padding = 0.04
     robot_bounding_box = {
-        "panther": {
-            "min_x": -0.41 - bb_padding,
-            "min_y": -0.43 - bb_padding,
+        "rover_a1": {
+            "min_x": -0.45 - bb_padding,
+            "min_y": -0.45 - bb_padding,
             "min_z": 0.05,
-            "max_x": 0.41 + bb_padding,
-            "max_y": 0.43 + bb_padding,
-            "max_z": 0.5,
-        },
-        "lynx": {
-            "min_x": -0.32 - bb_padding,
-            "min_y": -0.27 - bb_padding,
-            "min_z": 0.05,
-            "max_x": 0.32 + bb_padding,
-            "max_y": 0.27 + bb_padding,
+            "max_x": 0.45 + bb_padding,
+            "max_y": 0.45 + bb_padding,
             "max_z": 0.5,
         },
     }
@@ -170,8 +162,7 @@ def generate_launch_description():
 
         return params
 
-    params_file = override_params_file("panther")
-    params_file = override_params_file("lynx")
+    params_file = override_params_file("rover_a1")
 
     configured_params = ParameterFile(
         RewrittenYaml(
