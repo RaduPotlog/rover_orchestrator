@@ -25,7 +25,7 @@ install(DIRECTORY behavior_trees config launch map
     DESTINATION share/${PROJECT_NAME}
 )
 
-install(DIRECTORY include DESTINATION include)
+# install(DIRECTORY include DESTINATION include)
 
 ament_export_dependencies(${DEPENDENCIES})
 ament_export_include_directories(include)
