@@ -1,3 +1,19 @@
+#!/usr/bin/env python3
+
+# Copyright 2025 Mechatronics Academy
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
@@ -18,7 +34,6 @@ from launch_ros.descriptions import ParameterFile
 from launch_ros.substitutions import FindPackageShare
 from nav2_common.launch import ReplaceString, RewrittenYaml
 
-
 def generate_launch_description():
     rover_navigation = FindPackageShare("rover_navigation")
     launch_dir = PathJoinSubstitution([rover_navigation, "launch"])
@@ -38,7 +53,7 @@ def generate_launch_description():
 
     declare_autostart_arg = DeclareLaunchArgument(
         "autostart",
-        default_value="true",
+        default_value="True",
         description="Automatically startup the nav2 stack.",
     )
     declare_log_level_arg = DeclareLaunchArgument(
@@ -49,7 +64,7 @@ def generate_launch_description():
     )
     declare_map_arg = DeclareLaunchArgument(
         "map",
-        default_value="/maps/map.yaml",
+        default_value="empty_world.yaml",
         description="Path to map yaml file to load.",
     )
     declare_namespace_arg = DeclareLaunchArgument(
@@ -97,7 +112,7 @@ def generate_launch_description():
     )
     declare_use_sim_time_arg = DeclareLaunchArgument(
         "use_sim_time",
-        default_value="false",
+        default_value="False",
         description="Use simulation (Gazebo) clock if true.",
     )
 
@@ -219,22 +234,22 @@ def generate_launch_description():
                     "use_sim_time": use_sim_time,
                 }.items(),
             ),
-            # IncludeLaunchDescription(
-            #     PythonLaunchDescriptionSource(
-            #         PathJoinSubstitution([launch_dir, "localization_launch.py"])
-            #     ),
-            #     condition=UnlessCondition(slam),
-            #     launch_arguments={
-            #         "autostart": autostart,
-            #         "container_name": "nav2_container",
-            #         "map": map,
-            #         "namespace": namespace,
-            #         "params_file": params_file,
-            #         "use_composition": use_composition,
-            #         "use_respawn": use_respawn,
-            #         "use_sim_time": use_sim_time,
-            #     }.items(),
-            # ),
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    PathJoinSubstitution([launch_dir, "localization.launch.py"])
+                ),
+                condition=UnlessCondition(slam),
+                launch_arguments={
+                    "autostart": autostart,
+                    "container_name": "nav2_container",
+                    "map": map,
+                    "namespace": namespace,
+                    "params_file": params_file,
+                    "use_composition": use_composition,
+                    "use_respawn": use_respawn,
+                    "use_sim_time": use_sim_time,
+                }.items(),
+            ),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(
                     PathJoinSubstitution([launch_dir, "rover_nav.launch.py"])
