@@ -45,7 +45,7 @@
       goal_checker:
         plugin: nav2_controller::SimpleGoalChecker
         stateful: true
-        xy_goal_tolerance: 0.1
+        xy_goal_tolerance: 0.25
         yaw_goal_tolerance: 0.15
 
       # MPPI controller
@@ -62,6 +62,12 @@
         vx_min: -0.5
         vy_max: 0.0
         wz_max: 1.0
+        # Must stay consistent with velocity_smoother max_accel / max_decel below,
+        # otherwise MPPI plans stops the hardware cannot execute and overshoots.
+        ax_max: 1.5
+        ax_min: -1.5
+        ay_max: 0.0
+        az_max: 2.0
         iteration_count: 1
         prune_distance: 2.5
         transform_tolerance: 0.1
@@ -370,7 +376,7 @@
 
   velocity_smoother:
     ros__parameters:
-      use_sim_time: True
+      use_sim_time: false
       enable_stamped_cmd_vel: true
       smoothing_frequency: 20.0
       scale_velocities: False
