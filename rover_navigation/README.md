@@ -27,7 +27,7 @@ providing:
 |---|---|
 | TF `odom -> base_link` | `rover_localization` (EKF) |
 | TF `base_link -> lidar_link` | `rover_description` (URDF / robot_state_publisher) |
-| `odom` (`nav_msgs/Odometry`) | `rover_localization`, remapped from `/odometry/filtered` |
+| `odom` (`nav_msgs/Odometry`) | `rover_localization`, remapped from `odometry/filtered` |
 | `/scan` (`sensor_msgs/LaserScan`) | LiDAR driver, or the Gazebo bridge in simulation |
 | `cmd_vel` arbitration | `rover_twist_mux` (input `nav_cmd_vel_stamped`, priority 5) |
 
@@ -89,11 +89,14 @@ ros2 launch rover_navigation bringup.launch.py \
 #### Namespaced:
 
 ```bash
-ros2 launch rover_navigation bringup.launch.py namespace:=rover_a1 ...
+ros2 launch rover_navigation bringup.launch.py namespace:=rover ...
 ```
 
-`namespace` defaults to the `ROBOT_NAMESPACE` environment variable. Note that the rest of
-the rover stack reads `ROVER_NAMESPACE` instead, so set both if you namespace the robot.
+`namespace` defaults to the `ROVER_NAMESPACE` environment variable (falling back to the
+legacy `ROBOT_NAMESPACE`), the same variable the rover stack reads. The rover runs under
+`rover` (`rover_docker/docker-compose.yml`), so export `ROVER_NAMESPACE=rover` on this
+computer too: otherwise Nav 2 publishes `/nav_cmd_vel_stamped` while the rover's mux listens on
+`/rover/nav_cmd_vel_stamped`, and looks up `odom`/`base_link` instead of `rover/odom`/`rover/base_link`.
 
 ## Launch Arguments
 
@@ -105,7 +108,7 @@ Arguments of `bringup.launch.py` (`ros2 launch rover_navigation bringup.launch.p
 | `autostart` | `True` | Automatically start up the Nav 2 stack. |
 | `log_level` | `info` | Logging level: `debug`, `info`, `warning`, `error`. |
 | `map` | `empty_world.yaml` | Map yaml file to load. Pass an absolute path. |
-| `namespace` | `$ROBOT_NAMESPACE`, else empty | Namespace applied to all launched nodes. |
+| `namespace` | `$ROVER_NAMESPACE`, else `$ROBOT_NAMESPACE`, else empty | Namespace applied to all launched nodes. |
 | `observation_topic` | `` (empty) | LaserScan or PointCloud2 topic feeding the costmaps. |
 | `observation_topic_type` | `pointcloud` | `laserscan` or `pointcloud`. Use `laserscan`. |
 | `params_file` | `<share>/rover_navigation/config/rover_nav_params.yaml` | Parameter file for all Nav 2 nodes. |
@@ -165,15 +168,15 @@ All Nav 2 frames are `odom` / `base_link`, not `map` (see limitations). Plugins 
 ## Sending a Goal
 
 ```bash
-ros2 lifecycle get /bt_navigator     # expect: active [3]
+ros2 lifecycle get /rover/bt_navigator     # expect: active [3]
 
-ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose \
-  "{pose: {header: {frame_id: odom}, pose: {position: {x: 2.0, y: 0.0, z: 0.0}, orientation: {w: 1.0}}}}"
+ros2 action send_goal /rover/navigate_to_pose nav2_msgs/action/NavigateToPose \
+  "{pose: {header: {frame_id: rover/odom}, pose: {position: {x: 2.0, y: 0.0, z: 0.0}, orientation: {w: 1.0}}}}"
 
-ros2 topic echo /nav_cmd_vel_stamped
+ros2 topic echo /rover/nav_cmd_vel_stamped
 ```
 
-The goal `frame_id` must be **`odom`**, not `map`.
+The goal `frame_id` must be **`rover/odom`** (`<namespace>/odom`), not `map`.
 
 ## Known Limitations and Troubleshooting
 

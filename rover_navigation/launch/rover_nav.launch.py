@@ -68,7 +68,10 @@ def generate_launch_description():
 
     declare_namespace_cmd = DeclareLaunchArgument(
         "namespace",
-        default_value=EnvironmentVariable("ROBOT_NAMESPACE", default_value=""),
+        default_value=EnvironmentVariable(
+            "ROVER_NAMESPACE",
+            default_value=EnvironmentVariable("ROBOT_NAMESPACE", default_value=""),
+        ),
         description="Top-level namespace",
     )
 
