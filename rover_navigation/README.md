@@ -200,6 +200,6 @@ The goal `frame_id` must be **`odom`**, not `map`.
   `rover_bringup` or `rover_gazebo` first.
 - **Rover does not move but `nav_cmd_vel_stamped` is publishing:** check `rover_twist_mux`
   — a higher-priority teleop input may be active, or `motion_lock` may be engaged. A stale
-  `motion_lock` topic is treated as locked, so the mux closes if `motion_lock_node` dies.
+  `motion_lock` topic is treated as locked, so the mux closes if `rover_motion_lock_node` dies.
 - **Debugging:** `use_composition:=False use_respawn:=True log_level:=debug` runs one
   process per server, which makes crashes and parameter errors far easier to read.
