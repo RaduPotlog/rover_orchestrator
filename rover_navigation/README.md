@@ -10,7 +10,7 @@ against the teleop sources.
 
 ## Prerequisites
 
-ROS 2 **Jazzy**, with the workspace built and sourced. `rover_navigation` is not part of
+ROS 2 **Lyrical**, with the workspace built and sourced. `rover_navigation` is not part of
 `rover_metapackage`, so build it explicitly:
 
 ```bash
@@ -25,14 +25,15 @@ providing:
 
 | What | Provided by |
 |---|---|
-| TF `odom -> base_link` | `rover_localization` (EKF) |
-| TF `base_link -> lidar_link` | `rover_description` (URDF / robot_state_publisher) |
+| TF `<namespace>/odom -> <namespace>/base_link` | `rover_localization` (EKF) |
+| TF `<namespace>/base_link -> <namespace>/lidar_link` | `rover_description` (URDF / robot_state_publisher) |
 | `odom` (`nav_msgs/Odometry`) | `rover_localization`, remapped from `odometry/filtered` |
-| `/scan` (`sensor_msgs/LaserScan`) | LiDAR driver, or the Gazebo bridge in simulation |
+| `<namespace>/scan` (`sensor_msgs/LaserScan`) | LiDAR driver, or the Gazebo bridge in simulation |
 | `cmd_vel` arbitration | `rover_twist_mux` (input `nav_cmd_vel_stamped`, priority 5) |
 
 When navigation runs on a different machine than the rover, both must share the same
-`ROS_DOMAIN_ID`.
+`ROS_DOMAIN_ID`, `RMW_IMPLEMENTATION` (`rmw_zenoh_cpp`, see `rover_docker`'s README) and
+`ROVER_NAMESPACE` (`rover`).
 
 ## Config Files
 
@@ -145,8 +146,8 @@ Lifecycle nodes managed by `lifecycle_manager_navigation`: `controller_server`,
 | Direction | Topic | Type |
 |---|---|---|
 | in | `odom` | `nav_msgs/Odometry` |
-| in | `/scan` | `sensor_msgs/LaserScan` |
-| in | `/map` | `nav_msgs/OccupancyGrid` (global costmap static layer) |
+| in | `<observation_topic>` (e.g. `scan`) | `sensor_msgs/LaserScan` |
+| in | `/<namespace>/map` | `nav_msgs/OccupancyGrid` (global costmap static layer) |
 | out | `nav_cmd_vel_stamped` | `geometry_msgs/TwistStamped` |
 | out | `local_costmap/costmap`, `global_costmap/costmap` | `nav_msgs/OccupancyGrid` |
 
@@ -154,7 +155,8 @@ Lifecycle nodes managed by `lifecycle_manager_navigation`: `controller_server`,
 it). `rover_twist_mux` gives it priority 5 — below both teleop sources — and masks it
 whenever the `motion_lock` E-Stop is active.
 
-All Nav 2 frames are `odom` / `base_link`, not `map` (see limitations). Plugins in use:
+All Nav 2 frames are `<namespace>/odom` / `<namespace>/base_link` (`rover/odom` on the rover), not
+`map` (see limitations). Plugins in use:
 
 - Controller: `nav2_mppi_controller::MPPIController` (`DiffDrive` motion model,
   `vx_max 0.8`, `wz_max 1.0`, 10 Hz).
