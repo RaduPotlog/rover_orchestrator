@@ -28,7 +28,7 @@ providing:
 | TF `<namespace>/odom -> <namespace>/base_link` | `rover_localization` (EKF) |
 | TF `<namespace>/base_link -> <namespace>/lidar_link` | `rover_description` (URDF / robot_state_publisher) |
 | `odom` (`nav_msgs/Odometry`) | `rover_localization`, remapped from `odometry/filtered` |
-| `<namespace>/scan` (`sensor_msgs/LaserScan`) | LiDAR driver, or the Gazebo bridge in simulation |
+| `<namespace>/scan` (`sensor_msgs/LaserScan`) | `rover_lidar` on hardware (`ROVER_USE_LIDAR=true`), or the Gazebo bridge in simulation |
 | `cmd_vel` arbitration | `rover_twist_mux` (input `nav_cmd_vel_stamped`, priority 5) |
 
 When navigation runs on a different machine than the rover, both must share the same
