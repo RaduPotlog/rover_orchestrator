@@ -182,8 +182,8 @@ exclusive. This argument replaces the old `slam` boolean.
 | Mode | Nav 2 global frame | `map -> odom` published by | Use when |
 |---|---|---|---|
 | `odom` (default) | `<namespace>/odom` | nobody | No GPS, no SLAM. Navigation is odometry-relative and **drifts**; the global costmap's static layer will not line up with the map. |
-| `gps` | `<namespace>/map` | `rover_ekf_global_node` (`rover_localization`) | `ROVER_EKF_USE_GPS` is set on the rover. |
-| `slam` | `<namespace>/map` | `slam_toolbox` | Mapping a new area. Requires `ROVER_EKF_USE_GPS` **off**. |
+| `gps` | `<namespace>/map` | `rover_ekf_global_node` (`rover_localization`) | `ROVER_USE_GPS` is set on the rover. |
+| `slam` | `<namespace>/map` | `slam_toolbox` | Mapping a new area. Requires `ROVER_USE_GPS` **off**. |
 
 ```bash
 # GPS-backed navigation, global frame rover/map
@@ -222,7 +222,7 @@ The goal `frame_id` must match the mode: **`rover/odom`** with `localization_sou
 - **Never publish a static `map -> odom`.** Earlier revisions of this README suggested
   `static_transform_publisher --frame-id map --child-frame-id odom` to make the global
   costmap's static layer usable. **Do not do that.** Since GPS fusion was integrated,
-  `rover_ekf_global_node` (started by `rover_localization` whenever `ROVER_EKF_USE_GPS` is
+  `rover_ekf_global_node` (started by `rover_localization` whenever `ROVER_USE_GPS` is
   set) publishes `<namespace>/map -> <namespace>/odom` at 50 Hz. A static publisher would be a
   second owner of that transform and the two would fight. Use `localization_source:=gps`
   instead — see [Localization source](#localization-source).

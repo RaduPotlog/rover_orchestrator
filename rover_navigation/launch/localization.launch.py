@@ -111,7 +111,7 @@ def generate_launch_description():
             ),
             # AMCL is intentionally disabled. It publishes <namespace>/map -> <namespace>/odom,
             # and so does rover_ekf_global_node in rover_localization whenever GPS fusion is on
-            # (ROVER_EKF_USE_GPS; see rover_localization/launch/rover_localization.launch.py,
+            # (ROVER_USE_GPS; see rover_localization/launch/rover_localization.launch.py,
             # which carries the same warning). Only one process may own that transform. If you
             # re-enable AMCL, turn GPS fusion off and launch with localization_source:=odom.
             # Node(
@@ -151,7 +151,7 @@ def generate_launch_description():
             ),
             # AMCL is intentionally disabled. It publishes <namespace>/map -> <namespace>/odom,
             # and so does rover_ekf_global_node in rover_localization whenever GPS fusion is on
-            # (ROVER_EKF_USE_GPS; see rover_localization/launch/rover_localization.launch.py,
+            # (ROVER_USE_GPS; see rover_localization/launch/rover_localization.launch.py,
             # which carries the same warning). Only one process may own that transform. If you
             # re-enable AMCL, turn GPS fusion off and launch with localization_source:=odom.
             # ComposableNode(

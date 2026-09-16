@@ -111,10 +111,10 @@ def generate_launch_description():
             "\t  costmap's static layer will not line up with the map. Default; matches the\n"
             "\t  behaviour of this package before GPS fusion existed.\n"
             "\t- 'gps': the global frame is <namespace>/map, published by rover_ekf_global_node\n"
-            "\t  (rover_localization, started when ROVER_EKF_USE_GPS is set). Do NOT publish a\n"
+            "\t  (rover_localization, started when ROVER_USE_GPS is set). Do NOT publish a\n"
             "\t  static map -> odom and do NOT enable AMCL in this mode.\n"
             "\t- 'slam': the global frame is <namespace>/map, published by slam_toolbox.\n"
-            "\t  Requires ROVER_EKF_USE_GPS to be off."
+            "\t  Requires ROVER_USE_GPS to be off."
         ),
         choices=["odom", "gps", "slam"],
     )

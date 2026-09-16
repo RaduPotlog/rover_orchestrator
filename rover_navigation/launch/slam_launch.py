@@ -20,7 +20,7 @@ Online SLAM for the rover: slam_toolbox plus a map_saver_server to persist the r
 Started by bringup.launch.py in place of localization.launch.py when
 `localization_source:=slam`. In this mode slam_toolbox publishes
 <namespace>/map -> <namespace>/odom, so it must not run alongside the GPS global EKF
-(rover_ekf_global_node, enabled by ROVER_EKF_USE_GPS) or AMCL -- all three publish that
+(rover_ekf_global_node, enabled by ROVER_USE_GPS) or AMCL -- all three publish that
 same transform and would fight over it.
 """
 

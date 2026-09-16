@@ -496,7 +496,7 @@
 
   ### SLAM ###
   # Only used when bringup.launch.py is started with localization_source:=slam. slam_toolbox
-  # then owns <namespace>/map -> <namespace>/odom, so ROVER_EKF_USE_GPS must be off: the
+  # then owns <namespace>/map -> <namespace>/odom, so ROVER_USE_GPS must be off: the
   # global EKF (rover_ekf_global_node) publishes the same transform.
 
   map_saver:

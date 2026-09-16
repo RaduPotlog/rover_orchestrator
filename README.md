@@ -45,7 +45,7 @@ ros2 launch rover_mission_manager rover_mission_manager.launch.py localization_s
 Use `use_sim_time:=True` in simulation.
 
 `localization_source` picks who owns the `map -> odom` transform — `gps`
-(`rover_ekf_global_node`, when `ROVER_EKF_USE_GPS` is set), `slam` (`slam_toolbox`), or
+(`rover_ekf_global_node`, when `ROVER_USE_GPS` is set), `slam` (`slam_toolbox`), or
 `odom` (nobody; navigation is odometry-relative and drifts). **Exactly one may run**, and it
 must be the same value for both launch files above. See
 [`rover_navigation/README.md`](rover_navigation/README.md) for the full argument list, topics,
