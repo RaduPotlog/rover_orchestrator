@@ -6,6 +6,13 @@
 <root BTCPP_format="4" main_tree_to_execute="MainTree">
   <BehaviorTree ID="MainTree">
     <ReactiveSequence>
+      <!-- Re-ticked every cycle by the ReactiveSequence: if rover_motion_lock_node engages
+           the lock (or stops publishing), IsMotionLocked returns SUCCESS, the Inverter turns
+           that into FAILURE and the whole tree aborts. rover_twist_mux masks the velocity
+           command independently; this just stops Nav 2 fighting a closed mux. -->
+      <Inverter>
+        <IsMotionLocked topic="motion_lock" timeout="0.5" />
+      </Inverter>
       <RecoveryNode number_of_retries="6" name="NavigateRecovery">
         <PipelineSequence name="NavigateWithReplanning">
           <RateController hz="0.333">

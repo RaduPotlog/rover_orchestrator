@@ -44,9 +44,9 @@ def generate_launch_description():
     namespace = LaunchConfiguration("namespace")
     observation_topic = LaunchConfiguration("observation_topic")
     observation_topic_type = LaunchConfiguration("observation_topic_type")
+    localization_source = LaunchConfiguration("localization_source")
     params_file = LaunchConfiguration("params_file")
     robot_model = LaunchConfiguration("robot_model")
-    slam = LaunchConfiguration("slam")
     use_composition = LaunchConfiguration("use_composition")
     use_respawn = LaunchConfiguration("use_respawn")
     use_sim_time = LaunchConfiguration("use_sim_time")
@@ -100,8 +100,23 @@ def generate_launch_description():
         description="Specify robot model",
         choices=["rover_a1"],
     )
-    declare_slam_arg = DeclareLaunchArgument(
-        "slam", default_value="False", description="Whether run a SLAM."
+    declare_localization_source_arg = DeclareLaunchArgument(
+        "localization_source",
+        default_value="odom",
+        description=(
+            "Where the Nav 2 global frame comes from. Exactly one process may publish\n"
+            "map -> odom, so these are mutually exclusive:\n"
+            "\t- 'odom': no map -> odom at all. The global frame IS <namespace>/odom, so\n"
+            "\t  navigation is odometry-relative and drifts with the odometry. The global\n"
+            "\t  costmap's static layer will not line up with the map. Default; matches the\n"
+            "\t  behaviour of this package before GPS fusion existed.\n"
+            "\t- 'gps': the global frame is <namespace>/map, published by rover_ekf_global_node\n"
+            "\t  (rover_localization, started when ROVER_EKF_USE_GPS is set). Do NOT publish a\n"
+            "\t  static map -> odom and do NOT enable AMCL in this mode.\n"
+            "\t- 'slam': the global frame is <namespace>/map, published by slam_toolbox.\n"
+            "\t  Requires ROVER_EKF_USE_GPS to be off."
+        ),
+        choices=["odom", "gps", "slam"],
     )
     declare_use_composition_arg = DeclareLaunchArgument(
         "use_composition",
@@ -141,6 +156,22 @@ def generate_launch_description():
         ]
     )
 
+    slam = PythonExpression(["'", localization_source, "' == 'slam'"])
+
+    # Nav 2's global frame. In 'odom' mode it stays <namespace>/odom (no map -> odom exists);
+    # otherwise it is <namespace>/map, and the transform comes from whichever single source
+    # localization_source names. The local costmap is a rolling window and always stays on
+    # <namespace>/odom -- it is deliberately not tokenised.
+    global_frame = PythonExpression(
+        [
+            "'",
+            namespace_ext,
+            "' + ('odom' if '",
+            localization_source,
+            "' == 'odom' else 'map')",
+        ]
+    )
+
     bb_padding = 0.04
     robot_bounding_box = {
         "rover_a1": {
@@ -168,6 +199,7 @@ def generate_launch_description():
                 "<max_y>": str(bounding_box["max_y"]),
                 "<min_z>": str(bounding_box["min_z"]),
                 "<max_z>": str(bounding_box["max_z"]),
+                "<global_frame>": global_frame,
                 "<observation_topic>": observation_topic,
                 "<observation_topic_type>": observation_topic_type,
                 "<scan_topic>": scan_topic,
@@ -231,7 +263,7 @@ def generate_launch_description():
                 condition=IfCondition(slam),
                 launch_arguments={
                     "autostart": autostart,
-                    "namespace": namespace,
+                    "log_level": log_level,
                     "params_file": params_file,
                     "use_respawn": use_respawn,
                     "use_sim_time": use_sim_time,
@@ -289,8 +321,8 @@ def generate_launch_description():
             declare_observation_topic_arg,
             declare_observation_topic_type_arg,
             declare_params_file_arg,
+            declare_localization_source_arg,
             declare_robot_model_arg,
-            declare_slam_arg,
             declare_use_composition_arg,
             declare_use_respawn_arg,
             declare_use_sim_time_arg,

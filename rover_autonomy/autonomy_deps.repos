@@ -1,0 +1,9 @@
+# External sources the orchestrator-computer autonomy stack needs but that are not available
+# as binary packages.
+#
+# Deliberately empty. Everything rover_autonomy needs is either a binary ROS 2 package
+# (nav2_*, slam_toolbox, behaviortree_cpp) or already in this workspace (rover_ros). In
+# particular, BehaviorTree.ROS2 is NOT vendored: rover_mission_manager dispatches Nav 2
+# actions through nav2_behavior_tree's BtActionNode, which ships with Nav 2, so there is no
+# source dependency to pin. Add entries here only if that stops being true.
+repositories: {}

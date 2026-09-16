@@ -1,0 +1,41 @@
+/**:
+  mission_manager:
+    ros__parameters:
+      tree_name: RoverMission
+      timer_frequency: 20.0
+      bt_server_port: 4444
+
+      # Plain BehaviorTree.CPP plugins. is_motion_locked_bt_node is built by rover_navigation
+      # and installed into lib/, where BT::SharedLibrary finds it by name.
+      plugin_libs:
+        - is_motion_locked_bt_node
+
+      # BehaviorTree plugins that need the ROS node handle. Empty by default: the shipped tree
+      # does not call Nav 2 (see behavior_trees/rover_mission.xml for why). To add Nav 2 calls
+      # to the tree, list nav2_behavior_tree's prebuilt plugins here, e.g.
+      #   - nav2_navigate_to_pose_action_bt_node
+      #   - nav2_navigate_through_poses_action_bt_node
+      # and read the note about double-dispatch in the tree file first.
+      #
+      # Left unset rather than written as `ros_plugin_libs: []`: an empty YAML sequence
+      # has no inferable element type, and rcl rejects it at load time with
+      # "Invalid parameter value ... Contains no value". The parameter's own default
+      # is already an empty string_array.
+
+      motion_lock_topic: motion_lock
+      motion_lock_timeout: 0.5
+
+      battery_topic: battery
+      abort_battery_fraction: 0.10
+
+      navigate_to_pose_action: navigate_to_pose
+
+      # Empty means "derive <namespace>/odom". Set to <namespace>/map when rover_navigation
+      # runs with localization_source:=gps or :=slam.
+      goal_frame_id: ""
+
+      mission_status_topic: mission_status
+
+      ros_communication_timeout:
+        availability: 2.0
+        response: 1.0

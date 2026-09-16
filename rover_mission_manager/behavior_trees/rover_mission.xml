@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Supervisory tree for the Rover A1 mission manager.
+
+  Scope note: this tree does NOT drive Nav 2. Waypoint dispatch lives in
+  application::RunMissionUseCase, which owns the mission cursor and the abort rules; putting a
+  NavigateToPose node in here as well would give the rover two independent things sending
+  goals to the same action server. The tree is the operator-facing layer: guards, sequencing
+  and anything you want to change in Groot2 without recompiling.
+
+  Wrapped in ForceSuccess so the tree re-ticks forever: a FAILURE inside must not stop the
+  manager, it just means "not right now".
+-->
+<root BTCPP_format="4" main_tree_to_execute="RoverMission">
+  <BehaviorTree ID="RoverMission">
+    <ForceSuccess>
+      <Sequence name="MissionSupervision">
+        <Inverter>
+          <IsMotionLocked topic="{MOTION_LOCK_TOPIC}"
+                          timeout="{MOTION_LOCK_TIMEOUT}" />
+        </Inverter>
+      </Sequence>
+    </ForceSuccess>
+  </BehaviorTree>
+
+  <!-- Node models, for Groot2 -->
+  <TreeNodesModel>
+    <Condition ID="IsMotionLocked" editable="true">
+      <input_port name="topic" default="motion_lock">
+        std_msgs/Bool topic carrying rover_twist_mux's motion lock state
+      </input_port>
+      <input_port name="timeout" default="0.5">
+        Seconds after which a missing message counts as locked
+      </input_port>
+    </Condition>
+  </TreeNodesModel>
+</root>

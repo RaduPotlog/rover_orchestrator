@@ -3,10 +3,10 @@
 Package containing the Nav 2 configuration of the Rover A1 — costmaps, MPPI controller,
 Smac 2D planner, recovery behaviors, behavior trees and map server.
 
-It is a pure configuration package: it builds no nodes, it only installs launch files,
-parameters, behavior trees and a map. It is meant to run on the orchestrator computer and
-drives the rover by publishing `nav_cmd_vel_stamped`, which `rover_twist_mux` arbitrates
-against the teleop sources.
+Mostly configuration — launch files, parameters, behavior trees and a map — plus two small
+pieces of C++: the `IsMotionLocked` behavior-tree condition and the SLAM `map_autosaver_node`.
+It runs on the orchestrator computer and drives the rover by publishing
+`nav_cmd_vel_stamped`, which `rover_twist_mux` arbitrates against the teleop sources.
 
 ## Prerequisites
 
@@ -39,8 +39,8 @@ When navigation runs on a different machine than the rover, both must share the 
 
 - `config/rover_nav_params.yaml` - parameters for every Nav 2 node, in a single `/**:`
   block. The `<namespace>`, `<min_x>`/`<max_x>`/`<min_y>`/`<max_y>`/`<min_z>`/`<max_z>`,
-  `<observation_topic>`, `<observation_topic_type>`, `<scan_topic>` and `<stvl_layer>`
-  placeholders are substituted at launch time by `bringup.launch.py`.
+  `<observation_topic>`, `<observation_topic_type>`, `<scan_topic>`, `<stvl_layer>` and
+  `<global_frame>` placeholders are substituted at launch time by `bringup.launch.py`.
 - `map/empty_world.yaml` + `map/empty_world.png` - default empty map, 50 x 50 m at
   0.1 m/px.
 - `map/rover_map_server.yaml` - a `map_server` parameter snippet, not a map.
@@ -52,10 +52,13 @@ When navigation runs on a different machine than the rover, both must share the 
 ## Launch Files
 
 - `bringup.launch.py` - top-level entry point. Starts the `nav2_container` component
-  container and includes the two launch files below.
+  container and includes the launch files below.
 - `rover_nav.launch.py` - the Nav 2 navigation servers plus
   `lifecycle_manager_navigation`.
-- `localization.launch.py` - `map_server` plus `lifecycle_manager_localization`.
+- `localization.launch.py` - `map_server` plus `lifecycle_manager_localization`. Used for
+  `localization_source` `odom` and `gps`.
+- `slam_launch.py` - `slam_toolbox` plus `map_saver` and `lifecycle_manager_slam`. Used for
+  `localization_source:=slam`, and the only mode in which `map_autosaver_node` runs.
 
 ## Running
 
@@ -114,7 +117,7 @@ Arguments of `bringup.launch.py` (`ros2 launch rover_navigation bringup.launch.p
 | `observation_topic_type` | `pointcloud` | `laserscan` or `pointcloud`. Use `laserscan`. |
 | `params_file` | `<share>/rover_navigation/config/rover_nav_params.yaml` | Parameter file for all Nav 2 nodes. |
 | `robot_model` | `$ROBOT_MODEL_NAME`, else `rover_a1` | Robot model; selects the footprint bounding box. |
-| `slam` | `False` | Run SLAM instead of the map server. See limitations below. |
+| `localization_source` | `odom` | Where the Nav 2 global frame comes from: `odom`, `gps` or `slam`. Replaces the old `slam` boolean. See below. |
 | `use_composition` | `True` | Load all servers into one component container. |
 | `use_respawn` | `False` | Respawn a crashed node. Only when composition is disabled. |
 | `use_sim_time` | `False` | Use the Gazebo clock. |
@@ -155,8 +158,9 @@ Lifecycle nodes managed by `lifecycle_manager_navigation`: `controller_server`,
 it). `rover_twist_mux` gives it priority 5 — below both teleop sources — and masks it
 whenever the `motion_lock` E-Stop is active.
 
-All Nav 2 frames are `<namespace>/odom` / `<namespace>/base_link` (`rover/odom` on the rover), not
-`map` (see limitations). Plugins in use:
+The Nav 2 global frame depends on `localization_source` (see below); the robot frame is
+always `<namespace>/base_link`, and the local costmap always stays on `<namespace>/odom`
+because it is a rolling window. Plugins in use:
 
 - Controller: `nav2_mppi_controller::MPPIController` (`DiffDrive` motion model,
   `vx_max 0.8`, `wz_max 1.0`, 10 Hz).
@@ -164,8 +168,40 @@ All Nav 2 frames are `<namespace>/odom` / `<namespace>/base_link` (`rover/odom` 
 - Costmap layers: `spatio_temporal_voxel_layer` + inflation on both costmaps, plus a static
   layer on the global costmap.
 - Behaviors: `spin`, `backup`, `wait`.
+- BT plugin: `is_motion_locked_bt_node` (`IsMotionLocked`), listed in `bt_navigator`'s
+  `plugin_lib_names` and used as a guard at the top of both navigation trees.
 - Footprint: a 0.98 x 0.98 m square, built from the `rover_a1` bounding box hardcoded in
   `bringup.launch.py`.
+
+## Localization source
+
+`localization_source` decides **which frame Nav 2 plans in, and who publishes
+`map -> odom`**. Exactly one process may own that transform, so the three modes are mutually
+exclusive. This argument replaces the old `slam` boolean.
+
+| Mode | Nav 2 global frame | `map -> odom` published by | Use when |
+|---|---|---|---|
+| `odom` (default) | `<namespace>/odom` | nobody | No GPS, no SLAM. Navigation is odometry-relative and **drifts**; the global costmap's static layer will not line up with the map. |
+| `gps` | `<namespace>/map` | `rover_ekf_global_node` (`rover_localization`) | `ROVER_EKF_USE_GPS` is set on the rover. |
+| `slam` | `<namespace>/map` | `slam_toolbox` | Mapping a new area. Requires `ROVER_EKF_USE_GPS` **off**. |
+
+```bash
+# GPS-backed navigation, global frame rover/map
+ros2 launch rover_navigation bringup.launch.py \
+  localization_source:=gps \
+  observation_topic_type:=laserscan observation_topic:=scan \
+  map:=$(ros2 pkg prefix rover_navigation)/share/rover_navigation/map/empty_world.yaml
+```
+
+Check there is exactly one publisher before trusting a goal:
+
+```bash
+ros2 run tf2_ros tf2_monitor rover/map rover/odom
+```
+
+In `gps` mode the map's origin and the EKF datum (`rover/localization/datum`) must describe
+the same place, or the static layer will be offset from the world by that difference. This is
+a configuration trap, not a bug — the transform will look perfectly healthy.
 
 ## Sending a Goal
 
@@ -178,20 +214,21 @@ ros2 action send_goal /rover/navigate_to_pose nav2_msgs/action/NavigateToPose \
 ros2 topic echo /rover/nav_cmd_vel_stamped
 ```
 
-The goal `frame_id` must be **`rover/odom`** (`<namespace>/odom`), not `map`.
+The goal `frame_id` must match the mode: **`rover/odom`** with `localization_source:=odom`
+(as above), **`rover/map`** with `gps` or `slam`.
 
 ## Known Limitations and Troubleshooting
 
-- **`slam:=True` does not work.** `bringup.launch.py` includes `launch/slam_launch.py` and
-  starts a `map_autosaver_node`; neither exists in this package.
-- **There is no `map -> odom` transform.** AMCL is commented out in
-  `localization.launch.py`, and every Nav 2 global frame is set to `odom`, so navigation is
-  odometry-relative and drifts with the odometry. The global costmap's static layer has no
-  usable transform to the map frame — expect transform warnings, or publish a `map -> odom`
-  static transform if you want the static layer to contribute:
-  ```bash
-  ros2 run tf2_ros static_transform_publisher --frame-id map --child-frame-id odom
-  ```
+- **Never publish a static `map -> odom`.** Earlier revisions of this README suggested
+  `static_transform_publisher --frame-id map --child-frame-id odom` to make the global
+  costmap's static layer usable. **Do not do that.** Since GPS fusion was integrated,
+  `rover_ekf_global_node` (started by `rover_localization` whenever `ROVER_EKF_USE_GPS` is
+  set) publishes `<namespace>/map -> <namespace>/odom` at 50 Hz. A static publisher would be a
+  second owner of that transform and the two would fight. Use `localization_source:=gps`
+  instead — see [Localization source](#localization-source).
+- **Only one process may own `map -> odom`.** The three producers are mutually exclusive:
+  `rover_ekf_global_node` (GPS), `slam_toolbox` (SLAM) and AMCL (disabled, and commented in
+  `localization.launch.py` with the reason). Pick one with `localization_source`.
 - **Do not use the default `observation_topic_type:=pointcloud`.** It expects a
   `<observation_topic>_filtered` PointCloud2 produced by the crop-box and
   `pointcloud_to_laserscan` nodes, both of which are commented out in `bringup.launch.py`.
@@ -203,8 +240,20 @@ The goal `frame_id` must be **`rover/odom`** (`<namespace>/odom`), not `map`.
   until `odom -> base_link` exists, so `controller_server` never finishes activating and
   `bt_navigator` stays inactive. Only `map_server` comes up on its own. Start
   `rover_bringup` or `rover_gazebo` first.
+- **Rover does not move and nothing is published on `nav_cmd_vel_stamped`:** the
+  `IsMotionLocked` guard at the top of both navigation trees is aborting them. It is
+  fail-safe — it reports "locked" before the first `motion_lock` message and whenever the
+  last one is older than its `timeout` (0.5 s; the publisher runs at 10 Hz), matching
+  `rover_twist_mux`'s own rule that a dead `rover_motion_lock_node` closes the mux. Check
+  `ros2 topic hz /rover/motion_lock` and `ros2 topic echo /rover/motion_lock`.
 - **Rover does not move but `nav_cmd_vel_stamped` is publishing:** check `rover_twist_mux`
-  — a higher-priority teleop input may be active, or `motion_lock` may be engaged. A stale
-  `motion_lock` topic is treated as locked, so the mux closes if `rover_motion_lock_node` dies.
+  — a higher-priority teleop input may be active, or `motion_lock` may be engaged.
+- **`plugin_lib_names` semantics.** `bt_navigator` is configured with
+  `plugin_lib_names: [is_motion_locked_bt_node]`, on the assumption that Nav 2 loads its
+  built-in BT nodes unconditionally from `nav2_behavior_tree/plugins_list.hpp` and treats
+  this list as *additional*. If navigation instead fails at startup with unknown-node errors
+  for stock nodes like `ComputePathToPose`, this Nav 2 build treats the list as an override:
+  prepend the built-in list (`BT_BUILTIN_PLUGINS` in that header) to it. This could not be
+  verified here — `nav2_bt_navigator` is not installed on this machine.
 - **Debugging:** `use_composition:=False use_respawn:=True log_level:=debug` runs one
   process per server, which makes crashes and parameter errors far easier to read.

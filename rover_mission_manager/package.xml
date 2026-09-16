@@ -1,25 +1,29 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>rover_navigation</name>
+  <name>rover_mission_manager</name>
   <version>1.0.0</version>
-  <description>The package contains the nav2 package configurations of the rover</description>
+  <description>
+    Behavior-tree-driven mission supervision for the Rover A1 orchestrator computer.
+  </description>
   <maintainer email="potlogradu@gmail.com">root</maintainer>
   <license>Apache License 2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>behaviortree_cpp</depend>
-  <depend>lifecycle_msgs</depend>
+  <depend>generate_parameter_library</depend>
+  <depend>geometry_msgs</depend>
   <depend>nav2_msgs</depend>
-  <depend>nav_msgs</depend>
   <depend>rclcpp</depend>
-  <depend>spatio_temporal_voxel_layer</depend>
+  <depend>rclcpp_action</depend>
+  <depend>rover_utils</depend>
+  <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
 
-  <exec_depend>nav2_bringup</exec_depend>
-  <exec_depend>pointcloud_to_laserscan</exec_depend>
-  <exec_depend>slam_toolbox</exec_depend>
+  <!-- is_motion_locked_bt_node, loaded by name at runtime via plugin_libs. -->
+  <exec_depend>rover_navigation</exec_depend>
 
   <test_depend>ament_cmake_gtest</test_depend>
 
