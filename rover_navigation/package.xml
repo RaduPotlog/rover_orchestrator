@@ -10,6 +10,7 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>behaviortree_cpp</depend>
+  <depend>diagnostic_msgs</depend>
   <depend>lifecycle_msgs</depend>
   <depend>nav2_msgs</depend>
   <depend>nav_msgs</depend>
@@ -18,7 +19,12 @@
   <depend>std_msgs</depend>
 
   <exec_depend>nav2_bringup</exec_depend>
-  <exec_depend>pointcloud_to_laserscan</exec_depend>
+  <!-- Every launch file imports nav2_common.launch (ReplaceString / RewrittenYaml). -->
+  <exec_depend>nav2_common</exec_depend>
+  <!-- Self-filter for the pointcloud path. Source-only; pinned in
+       rover_autonomy/autonomy_deps.repos. The repo is rover_pointcloud_crop_box, the
+       package inside it is pointcloud_crop_box. -->
+  <exec_depend>pointcloud_crop_box</exec_depend>
   <exec_depend>slam_toolbox</exec_depend>
 
   <test_depend>ament_cmake_gtest</test_depend>

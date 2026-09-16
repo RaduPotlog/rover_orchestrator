@@ -62,6 +62,36 @@ mission_manager:
       until the first BatteryState message arrives.
     validation: { bounds<>: [0.0, 1.0] }
 
+  lidar_health_topic:
+    type: string
+    default_value: "diagnostics"
+    description: >
+      diagnostic_msgs/DiagnosticArray topic carrying rover_lidar's health task. The raw
+      /diagnostics topic is watched rather than diagnostics_agg so this does not depend on
+      rover_diag_manager's aggregator running.
+
+  lidar_status_name:
+    type: string
+    default_value: "rover_lidar_node: Lidar status"
+    description: >
+      Exact DiagnosticStatus name to match. rover_lidar registers the task as "Lidar status"
+      with hardware ID RoverLidar; the node name is prefixed by diagnostic_updater.
+
+  lidar_health_timeout:
+    type: double
+    default_value: 3.0
+    description: >
+      Seconds after which a missing lidar status counts as unhealthy. diagnostic_updater
+      publishes at 1 Hz.
+    validation: { gt<>: 0.0 }
+
+  require_lidar:
+    type: bool
+    default_value: false
+    description: >
+      When true, a lidar status that has never been seen holds the mission. Leave false on a
+      rover that may run with ROVER_USE_LIDAR=false, or the mission would never start.
+
   navigate_to_pose_action:
     type: string
     default_value: "navigate_to_pose"

@@ -8,6 +8,7 @@ endif()
 set(DEPENDENCIES
     ament_cmake
     behaviortree_cpp
+    diagnostic_msgs
     generate_parameter_library
     geometry_msgs
     nav2_msgs
@@ -50,6 +51,7 @@ target_link_libraries(${PROJECT_NAME}_ros
     ${PROJECT_NAME}_core
     mission_manager_parameters
     ${behaviortree_cpp_TARGETS}
+    ${diagnostic_msgs_TARGETS}
     ${geometry_msgs_TARGETS}
     ${nav2_msgs_TARGETS}
     ${rclcpp_TARGETS}

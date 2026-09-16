@@ -13,6 +13,7 @@
       # the built-ins here or the factory will try to register them twice.
       plugin_lib_names:
         - is_motion_locked_bt_node
+        - is_lidar_healthy_bt_node
 
   bt_navigator_navigate_through_poses_rclcpp_node:
     ros__parameters:
@@ -108,10 +109,12 @@
           cost_power: 1
           cost_weight: 3.81
           critical_cost: 300.0
-          # Point-check rather than full-footprint: the footprint sweep over 800x40
-          # trajectory points is the dominant cost in the control loop, and buys nothing
-          # while no sensor marks the costmap. Set true once a sensor is fitted.
-          consider_footprint: false
+          # Full-footprint collision checking, enabled now that rover_lidar marks the
+          # costmap. The footprint sweep over 800x40 trajectory points is the dominant cost
+          # in the control loop: if `ros2 topic hz <ns>/nav_cmd_vel_stamped` drops below the
+          # 10 Hz controller_frequency on the orchestrator computer, set this back to false
+          # and accept point-check collision detection instead.
+          consider_footprint: true
           collision_cost: 1000000.0
           near_goal_distance: 1.0
         PathAlignCritic:
@@ -142,6 +145,31 @@
         #   twirling_cost_power: 1
         #   twirling_cost_weight: 10.0
 
+  # Self-filter for the pointcloud path. Only launched when observation_topic_type:=pointcloud
+  # (see bringup.launch.py); the default laserscan path does not use it, because STVL's
+  # update_footprint_enabled already clears the footprint out of <ns>/scan.
+  #
+  # The crop box is the robot's own bounding box, substituted from the same <min_x>..<max_z>
+  # tokens as the Nav 2 footprint, so the two can never drift apart. `negative: false` keeps
+  # everything *outside* the box.
+  pointcloud_crop_box:
+    ros__parameters:
+      input_topic: <observation_topic>
+      output_topic: <observation_topic>_filtered
+      target_frame: <namespace>/base_link
+      message_type: pointcloud
+      negative: false
+      visualize_crop_boxes: true
+      crop_boxes_names: [robot_box]
+      crop_boxes:
+        robot_box:
+          min_x: <min_x>
+          max_x: <max_x>
+          min_y: <min_y>
+          max_y: <max_y>
+          min_z: <min_z>
+          max_z: <max_z>
+
   local_costmap:
     local_costmap:
       ros__parameters:
@@ -165,76 +193,86 @@
 
         footprint: '[[<min_x>, <min_y>], [<min_x>, <max_y>], [<max_x>, <max_y>], [<max_x>, <min_y>]]'
 
-        plugins: [inflation_layer]
+        plugins: [stvl_layer, inflation_layer]
+        stvl_layer:
+          plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
+          enabled: true
+          voxel_decay: 1.0
+          decay_model: 0
+          voxel_size: 0.05
+          track_unknown_space: true
+          unknown_threshold: 15
+          mark_threshold: 0
+          # Clears the rover's own returns out of the footprint. rover_lidar's flattener
+          # applies no self-filter, and the RS16's 360 deg x +/-15 deg field sees the rover
+          # body, so this is what keeps the footprint from becoming a permanent obstacle ring.
+          update_footprint_enabled: true
+          combination_method: 1
+          origin_z: 0.0
+          publish_voxel_map: true
+          transform_tolerance: 0.2
+          mapping_mode: false
+          map_save_duration: 60.0
+          # Resolves to `laserscan` or `pointcloud`, which selects the matching block below.
+          observation_sources: <observation_topic_type>
+          # Fed by pointcloud_crop_box, which self-filters <ns>/rslidar_points. Only runs
+          # when observation_topic_type:=pointcloud; pass observation_topic:=rslidar_points.
+          pointcloud:
+            data_type: PointCloud2
+            topic: <observation_topic>_filtered
+            marking: true
+            clearing: true
+            obstacle_range: 3.0
+            min_obstacle_height: 0.0
+            max_obstacle_height: 2.0
+            expected_update_rate: 0.5
+            observation_persistence: 0.0
+            inf_is_valid: false
+            filter: "voxel"
+            voxel_min_points: 2
+            clear_after_reading: true
+            max_z: 2.0
+            min_z: -0.5
+            # RS16 geometry: +/-15 deg vertical, 360 deg horizontal.
+            vertical_fov_angle: 0.524
+            horizontal_fov_angle: 6.2832
+            decay_acceleration: 15.0
+            model_type: 0
+          # The default path: <ns>/scan from rover_lidar's pointcloud_to_laserscan.
+          laserscan:
+            data_type: LaserScan
+            topic: <observation_topic>
+            marking: true
+            clearing: true
+            obstacle_range: 3.0
+            min_obstacle_height: 0.0
+            max_obstacle_height: 2.0
+            # rover_lidar runs at 10 Hz; makes STVL complain when the scan stops.
+            expected_update_rate: 0.5
+            observation_persistence: 0.0
+            # rover_lidar's flattener sets use_inf: true, so no-return beams arrive as +inf.
+            # Discarding them would stop STVL clearing free space along an empty ray.
+            inf_is_valid: true
+            filter: "voxel"
+            # A flattened single-ring scan leaves ~1 point per voxel, so 2 would drop the
+            # whole scan.
+            voxel_min_points: 1
+            clear_after_reading: true
+            # min_z/max_z are in the global frame, not the sensor frame. lidar_link sits at
+            # ROVER_LIDAR_LOCALIZATION_Z above body_link (default 0.0), so a scan ring lands
+            # near z=0 and the upstream default of 0.1 filtered out every single point.
+            max_z: 2.0
+            min_z: -0.5
+            # RS16 geometry: +/-15 deg vertical, 360 deg horizontal.
+            vertical_fov_angle: 0.524
+            horizontal_fov_angle: 6.2832
+            decay_acceleration: 15.0
+            model_type: 0
         inflation_layer:
           plugin: nav2_costmap_2d::InflationLayer
           cost_scaling_factor: 2.0
           # Sized to the robot: footprint is 0.98 x 0.98 m, circumscribed radius 0.693 m.
-          # Nothing marks this costmap while there is no sensor, so this currently
-          # inflates nothing - it is here for when one is fitted.
           inflation_radius: 0.9
-        # DISABLED: this rover has no exteroceptive sensor (encoders + IMU only), so the
-        # observation topic is never published and this layer can never mark or clear a cell.
-        # Kept for when a lidar / depth camera is fitted: re-add stvl_layer to `plugins` above,
-        # uncomment below, and pass `observation_topic:=<sensor topic>` to the nav bringup
-        # (it defaults to "", which resolves the pointcloud source to the topic "_filtered").
-#        stvl_layer:
-#          plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
-#          enabled: true
-#          voxel_decay: 1.0
-#          decay_model: 0
-#          voxel_size: 0.05
-#          track_unknown_space: true
-#          unknown_threshold: 15
-#          mark_threshold: 0
-#          update_footprint_enabled: true
-#          combination_method: 1
-#          origin_z: 0.0
-#          publish_voxel_map: true
-#          transform_tolerance: 0.2
-#          mapping_mode: false
-#          map_save_duration: 60.0
-#          observation_sources: <observation_topic_type>
-#          pointcloud:
-#            data_type: PointCloud2
-#            topic: <observation_topic>_filtered
-#            marking: true
-#            clearing: true
-#            obstacle_range: 3.0
-#            min_obstacle_height: 0.0
-#            max_obstacle_height: 2.0
-#            expected_update_rate: 0.0
-#            observation_persistence: 0.0
-#            inf_is_valid: false
-#            filter: "voxel"
-#            voxel_min_points: 2
-#            clear_after_reading: true
-#            max_z: 7.0
-#            min_z: 0.1
-#            vertical_fov_angle: 0.8745
-#            horizontal_fov_angle: 1.048
-#            decay_acceleration: 15.0
-#            model_type: 0
-#          laserscan:
-#            data_type: LaserScan
-#            topic: <observation_topic>
-#            marking: true
-#            clearing: true
-#            obstacle_range: 3.0
-#            min_obstacle_height: 0.0
-#            max_obstacle_height: 2.0
-#            expected_update_rate: 0.0
-#            observation_persistence: 0.0
-#            inf_is_valid: false
-#            filter: "voxel"
-#            voxel_min_points: 2
-#            clear_after_reading: true
-#            max_z: 7.0
-#            min_z: 0.1
-#            vertical_fov_angle: 0.8745
-#            horizontal_fov_angle: 1.048
-#            decay_acceleration: 15.0
-#            model_type: 0
 
 
   global_costmap:
@@ -256,7 +294,81 @@
 
         footprint: '[[<min_x>, <min_y>], [<min_x>, <max_y>], [<max_x>, <max_y>], [<max_x>, <min_y>]]'
 
-        plugins: [static_layer, inflation_layer]
+        plugins: [static_layer, stvl_layer, inflation_layer]
+        stvl_layer:
+          plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
+          enabled: true
+          voxel_decay: 1.0
+          decay_model: 0
+          voxel_size: 0.05
+          track_unknown_space: true
+          unknown_threshold: 15
+          mark_threshold: 0
+          # Clears the rover's own returns out of the footprint. rover_lidar's flattener
+          # applies no self-filter, and the RS16's 360 deg x +/-15 deg field sees the rover
+          # body, so this is what keeps the footprint from becoming a permanent obstacle ring.
+          update_footprint_enabled: true
+          combination_method: 1
+          origin_z: 0.0
+          publish_voxel_map: true
+          transform_tolerance: 0.2
+          mapping_mode: false
+          map_save_duration: 60.0
+          # Resolves to `laserscan` or `pointcloud`, which selects the matching block below.
+          observation_sources: <observation_topic_type>
+          # Fed by pointcloud_crop_box, which self-filters <ns>/rslidar_points. Only runs
+          # when observation_topic_type:=pointcloud; pass observation_topic:=rslidar_points.
+          pointcloud:
+            data_type: PointCloud2
+            topic: <observation_topic>_filtered
+            marking: true
+            clearing: true
+            obstacle_range: 8.0
+            min_obstacle_height: 0.0
+            max_obstacle_height: 2.0
+            expected_update_rate: 0.5
+            observation_persistence: 0.0
+            inf_is_valid: false
+            filter: "voxel"
+            voxel_min_points: 2
+            clear_after_reading: true
+            max_z: 2.0
+            min_z: -0.5
+            # RS16 geometry: +/-15 deg vertical, 360 deg horizontal.
+            vertical_fov_angle: 0.524
+            horizontal_fov_angle: 6.2832
+            decay_acceleration: 15.0
+            model_type: 0
+          # The default path: <ns>/scan from rover_lidar's pointcloud_to_laserscan.
+          laserscan:
+            data_type: LaserScan
+            topic: <observation_topic>
+            marking: true
+            clearing: true
+            obstacle_range: 8.0
+            min_obstacle_height: 0.0
+            max_obstacle_height: 2.0
+            # rover_lidar runs at 10 Hz; makes STVL complain when the scan stops.
+            expected_update_rate: 0.5
+            observation_persistence: 0.0
+            # rover_lidar's flattener sets use_inf: true, so no-return beams arrive as +inf.
+            # Discarding them would stop STVL clearing free space along an empty ray.
+            inf_is_valid: true
+            filter: "voxel"
+            # A flattened single-ring scan leaves ~1 point per voxel, so 2 would drop the
+            # whole scan.
+            voxel_min_points: 1
+            clear_after_reading: true
+            # min_z/max_z are in the global frame, not the sensor frame. lidar_link sits at
+            # ROVER_LIDAR_LOCALIZATION_Z above body_link (default 0.0), so a scan ring lands
+            # near z=0 and the upstream default of 0.1 filtered out every single point.
+            max_z: 2.0
+            min_z: -0.5
+            # RS16 geometry: +/-15 deg vertical, 360 deg horizontal.
+            vertical_fov_angle: 0.524
+            horizontal_fov_angle: 6.2832
+            decay_acceleration: 15.0
+            model_type: 0
         inflation_layer:
           plugin: nav2_costmap_2d::InflationLayer
           cost_scaling_factor: 1.5
@@ -268,68 +380,6 @@
           plugin: nav2_costmap_2d::StaticLayer
           map_subscribe_transient_local: true
           map_topic: /<namespace>/map
-        # DISABLED: this rover has no exteroceptive sensor (encoders + IMU only), so the
-        # observation topic is never published and this layer can never mark or clear a cell.
-        # Kept for when a lidar / depth camera is fitted: re-add stvl_layer to `plugins` above,
-        # uncomment below, and pass `observation_topic:=<sensor topic>` to the nav bringup
-        # (it defaults to "", which resolves the pointcloud source to the topic "_filtered").
-#        stvl_layer:
-#          plugin: "spatio_temporal_voxel_layer/SpatioTemporalVoxelLayer"
-#          enabled: true
-#          voxel_decay: 1.0
-#          decay_model: 0
-#          voxel_size: 0.05
-#          track_unknown_space: true
-#          unknown_threshold: 15
-#          mark_threshold: 0
-#          update_footprint_enabled: true
-#          combination_method: 1
-#          origin_z: 0.0
-#          publish_voxel_map: true
-#          transform_tolerance: 0.2
-#          mapping_mode: false
-#          map_save_duration: 60.0
-#          observation_sources: <observation_topic_type>
-#          pointcloud:
-#            data_type: PointCloud2
-#            topic: <observation_topic>_filtered
-#            marking: true
-#            clearing: true
-#            obstacle_range: 8.0
-#            min_obstacle_height: 0.0
-#            max_obstacle_height: 2.0
-#            expected_update_rate: 0.0
-#            observation_persistence: 0.0
-#            inf_is_valid: false
-#            filter: "voxel"
-#            voxel_min_points: 2
-#            clear_after_reading: true
-#            max_z: 7.0
-#            min_z: 0.1
-#            vertical_fov_angle: 0.8745
-#            horizontal_fov_angle: 1.048
-#            decay_acceleration: 15.0
-#            model_type: 0
-#          laserscan:
-#            data_type: LaserScan
-#            topic: <observation_topic>
-#            marking: true
-#            clearing: true
-#            obstacle_range: 8.0
-#            min_obstacle_height: 0.0
-#            max_obstacle_height: 2.0
-#            expected_update_rate: 0.0
-#            observation_persistence: 0.0
-#            inf_is_valid: false
-#            filter: "voxel"
-#            voxel_min_points: 2
-#            clear_after_reading: true
-#            max_z: 7.0
-#            min_z: 0.1
-#            vertical_fov_angle: 0.8745
-#            horizontal_fov_angle: 1.048
-#            decay_acceleration: 15.0
-#            model_type: 0
 
 
   planner_server:
@@ -454,7 +504,8 @@
 
       laser_model_type: likelihood_field
       laser_likelihood_max_dist: 2.0
-      laser_max_range: 12.0
+      # Matches rover_lidar's pointcloud_to_laserscan range_max (20.0 m).
+      laser_max_range: 20.0
       laser_min_range: -1.0
 
       max_beams: 60
@@ -531,7 +582,8 @@
       transform_publish_period: 0.04
       map_update_interval: 1.0
       resolution: 0.05
-      max_laser_range: 12.0
+      # Matches rover_lidar's pointcloud_to_laserscan range_max (20.0 m).
+      max_laser_range: 20.0
       minimum_time_interval: 0.05
       transform_timeout: 0.5
       tf_buffer_duration: 20.0

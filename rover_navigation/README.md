@@ -29,6 +29,11 @@ providing:
 | TF `<namespace>/base_link -> <namespace>/lidar_link` | `rover_description` (URDF / robot_state_publisher) |
 | `odom` (`nav_msgs/Odometry`) | `rover_localization`, remapped from `odometry/filtered` |
 | `<namespace>/scan` (`sensor_msgs/LaserScan`) | `rover_lidar` on hardware (`ROVER_USE_LIDAR=true`), or the Gazebo bridge in simulation |
+| `<namespace>/diagnostics` (`diagnostic_msgs/DiagnosticArray`) | `rover_lidar` — watched by the `IsLidarHealthy` BT condition |
+
+Both costmaps mark and clear from the lidar, so without it the local costmap stays empty and
+the rover plans blind. `rover_lidar` also owns the `pointcloud_to_laserscan` conversion — this
+package deliberately does not run a second one.
 | `cmd_vel` arbitration | `rover_twist_mux` (input `nav_cmd_vel_stamped`, priority 5) |
 
 When navigation runs on a different machine than the rover, both must share the same
@@ -39,8 +44,10 @@ When navigation runs on a different machine than the rover, both must share the 
 
 - `config/rover_nav_params.yaml` - parameters for every Nav 2 node, in a single `/**:`
   block. The `<namespace>`, `<min_x>`/`<max_x>`/`<min_y>`/`<max_y>`/`<min_z>`/`<max_z>`,
-  `<observation_topic>`, `<observation_topic_type>`, `<scan_topic>`, `<stvl_layer>` and
-  `<global_frame>` placeholders are substituted at launch time by `bringup.launch.py`.
+  `<observation_topic>`, `<observation_topic_type>`, `<scan_topic>` and `<global_frame>`
+  placeholders are substituted at launch time by `bringup.launch.py`. The
+  `<min_x>`..`<max_z>` box sizes both the Nav 2 footprint and `pointcloud_crop_box`'s
+  self-filter, so the two cannot drift apart.
 - `map/empty_world.yaml` + `map/empty_world.png` - default empty map, 50 x 50 m at
   0.1 m/px.
 - `map/rover_map_server.yaml` - a `map_server` parameter snippet, not a map.
@@ -71,8 +78,6 @@ ros2 launch rover_gazebo simulation.launch.py
 # terminal 2 - navigation
 ros2 launch rover_navigation bringup.launch.py \
   use_sim_time:=True \
-  observation_topic_type:=laserscan \
-  observation_topic:=scan \
   map:=$(ros2 pkg prefix rover_navigation)/share/rover_navigation/map/empty_world.yaml
 ```
 
@@ -85,8 +90,6 @@ ros2 launch rover_bringup rover_bringup.launch.py
 # on the rover or on the orchestrator computer
 ros2 launch rover_navigation bringup.launch.py \
   use_sim_time:=False \
-  observation_topic_type:=laserscan \
-  observation_topic:=scan \
   map:=$(ros2 pkg prefix rover_navigation)/share/rover_navigation/map/empty_world.yaml
 ```
 
@@ -113,8 +116,8 @@ Arguments of `bringup.launch.py` (`ros2 launch rover_navigation bringup.launch.p
 | `log_level` | `info` | Logging level: `debug`, `info`, `warning`, `error`. |
 | `map` | `empty_world.yaml` | Map yaml file to load. Pass an absolute path. |
 | `namespace` | `$ROVER_NAMESPACE`, else `$ROBOT_NAMESPACE`, else empty | Namespace applied to all launched nodes. |
-| `observation_topic` | `` (empty) | LaserScan or PointCloud2 topic feeding the costmaps. |
-| `observation_topic_type` | `pointcloud` | `laserscan` or `pointcloud`. Use `laserscan`. |
+| `observation_topic` | `scan` | Topic feeding the costmaps' `stvl_layer`. `scan` with `observation_topic_type:=laserscan`; `rslidar_points` with `pointcloud`. |
+| `observation_topic_type` | `laserscan` | `laserscan` consumes `rover_lidar`'s flattened scan directly; `pointcloud` runs `pointcloud_crop_box` over the raw RS16 cloud first. |
 | `params_file` | `<share>/rover_navigation/config/rover_nav_params.yaml` | Parameter file for all Nav 2 nodes. |
 | `robot_model` | `$ROBOT_MODEL_NAME`, else `rover_a1` | Robot model; selects the footprint bounding box. |
 | `localization_source` | `odom` | Where the Nav 2 global frame comes from: `odom`, `gps` or `slam`. Replaces the old `slam` boolean. See below. |
@@ -149,7 +152,8 @@ Lifecycle nodes managed by `lifecycle_manager_navigation`: `controller_server`,
 | Direction | Topic | Type |
 |---|---|---|
 | in | `odom` | `nav_msgs/Odometry` |
-| in | `<observation_topic>` (e.g. `scan`) | `sensor_msgs/LaserScan` |
+| in | `<observation_topic>` (default `scan`) | `sensor_msgs/LaserScan` — the `stvl_layer`'s observation source |
+| in | `diagnostics` | `diagnostic_msgs/DiagnosticArray` — read by `IsLidarHealthy` |
 | in | `/<namespace>/map` | `nav_msgs/OccupancyGrid` (global costmap static layer) |
 | out | `nav_cmd_vel_stamped` | `geometry_msgs/TwistStamped` |
 | out | `local_costmap/costmap`, `global_costmap/costmap` | `nav_msgs/OccupancyGrid` |
@@ -165,11 +169,15 @@ because it is a rolling window. Plugins in use:
 - Controller: `nav2_mppi_controller::MPPIController` (`DiffDrive` motion model,
   `vx_max 0.8`, `wz_max 1.0`, 10 Hz).
 - Planner: `nav2_smac_planner::SmacPlanner2D`.
-- Costmap layers: `spatio_temporal_voxel_layer` + inflation on both costmaps, plus a static
-  layer on the global costmap.
+- Costmap layers: `spatio_temporal_voxel_layer` (`stvl_layer`) + inflation on both costmaps,
+  plus a static layer on the global costmap. `stvl_layer` is what marks and clears from the
+  lidar; `obstacle_range` is 3.0 m locally and 8.0 m globally.
 - Behaviors: `spin`, `backup`, `wait`.
-- BT plugin: `is_motion_locked_bt_node` (`IsMotionLocked`), listed in `bt_navigator`'s
-  `plugin_lib_names` and used as a guard at the top of both navigation trees.
+- BT plugins: `is_motion_locked_bt_node` (`IsMotionLocked`) and `is_lidar_healthy_bt_node`
+  (`IsLidarHealthy`), both listed in `bt_navigator`'s `plugin_lib_names` and used as guards at
+  the top of both navigation trees. Note their polarity is opposite: `IsMotionLocked` returns
+  SUCCESS when *locked* and is wrapped in an `Inverter`, while `IsLidarHealthy` returns SUCCESS
+  when *healthy* and is not.
 - Footprint: a 0.98 x 0.98 m square, built from the `rover_a1` bounding box hardcoded in
   `bringup.launch.py`.
 
@@ -189,7 +197,6 @@ exclusive. This argument replaces the old `slam` boolean.
 # GPS-backed navigation, global frame rover/map
 ros2 launch rover_navigation bringup.launch.py \
   localization_source:=gps \
-  observation_topic_type:=laserscan observation_topic:=scan \
   map:=$(ros2 pkg prefix rover_navigation)/share/rover_navigation/map/empty_world.yaml
 ```
 
@@ -229,10 +236,26 @@ The goal `frame_id` must match the mode: **`rover/odom`** with `localization_sou
 - **Only one process may own `map -> odom`.** The three producers are mutually exclusive:
   `rover_ekf_global_node` (GPS), `slam_toolbox` (SLAM) and AMCL (disabled, and commented in
   `localization.launch.py` with the reason). Pick one with `localization_source`.
-- **Do not use the default `observation_topic_type:=pointcloud`.** It expects a
-  `<observation_topic>_filtered` PointCloud2 produced by the crop-box and
-  `pointcloud_to_laserscan` nodes, both of which are commented out in `bringup.launch.py`.
-  Nothing publishes that topic, so the costmaps stay empty. Use `laserscan`.
+- **`observation_topic_type` picks between two working pipelines.** `laserscan` (the
+  default) feeds the `stvl_layer` from `rover_lidar`'s `<namespace>/scan` directly. `pointcloud`
+  runs `pointcloud_crop_box` over the raw `<namespace>/rslidar_points`, publishing
+  `<observation_topic>_filtered` for the layer's `pointcloud` source — so pass
+  `observation_topic:=rslidar_points` with it, and `vcs import` the crop-box repo first (see
+  `rover_autonomy/autonomy_deps.repos`). Prefer `laserscan` unless you specifically want the
+  full 3D cloud: the RS16 cloud is XYZI with no `ring`/`time` fields, and it costs noticeably
+  more CPU on the orchestrator computer.
+- **The local costmap stays empty and the rover drives into things.** Check, in order:
+  `ros2 topic hz /<ns>/scan` (is `rover_lidar` up? `ROVER_USE_LIDAR=true`, and it sits behind
+  a 10 s `TimerAction` in `rover_bringup`); then the `stvl_layer`'s `min_z`. `min_z`/`max_z`
+  are in the **global** frame, not the sensor frame. `lidar_link` sits
+  `ROVER_LIDAR_LOCALIZATION_Z` above `body_link` and that variable defaults to `0.0`, so a
+  scan ring lands near z=0 — the upstream STVL default of `min_z: 0.1` silently discarded
+  every single point. It is `-0.5` here. Raise `ROVER_LIDAR_LOCALIZATION_Z` to the real mount
+  height rather than re-tuning `min_z` blindly.
+- **`consider_footprint: true` costs CPU.** MPPI's footprint sweep over 800x40 trajectory
+  points is the dominant cost in the control loop. If `ros2 topic hz /<ns>/nav_cmd_vel_stamped`
+  falls below the 10 Hz `controller_frequency`, set `CostCritic.consider_footprint` back to
+  `false` and accept point-check collision detection.
 - **Pass an absolute `map:=` path.** The bare-filename default is resolved against the
   working directory of the process, not the package share directory.
 - **Servers stay `inactive` / `unconfigured` and the log repeats `Timed out waiting for
@@ -248,6 +271,12 @@ The goal `frame_id` must match the mode: **`rover/odom`** with `localization_sou
   `ros2 topic hz /rover/motion_lock` and `ros2 topic echo /rover/motion_lock`.
 - **Rover does not move but `nav_cmd_vel_stamped` is publishing:** check `rover_twist_mux`
   — a higher-priority teleop input may be active, or `motion_lock` may be engaged.
+- **Trees abort and `motion_lock` is fine:** the `IsLidarHealthy` guard is failing. Check
+  `ros2 topic echo /<ns>/diagnostics` for the status `rover_lidar_node: Lidar status` — `ERROR`
+  is a cloud timeout, `STALE` is "no data yet", and a status older than the node's `timeout`
+  (3 s) also fails. Unlike `IsMotionLocked`, this guard passes when the status has **never**
+  been seen, so that `ROVER_USE_LIDAR=false` operation keeps working; set
+  `require_present="true"` in both tree XMLs on a rover that always carries a lidar.
 - **`plugin_lib_names` semantics.** `bt_navigator` is configured with
   `plugin_lib_names: [is_motion_locked_bt_node]`, on the assumption that Nav 2 loads its
   built-in BT nodes unconditionally from `nav2_behavior_tree/plugins_list.hpp` and treats

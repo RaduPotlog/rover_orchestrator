@@ -1,9 +1,21 @@
 # External sources the orchestrator-computer autonomy stack needs but that are not available
 # as binary packages.
 #
-# Deliberately empty. Everything rover_autonomy needs is either a binary ROS 2 package
-# (nav2_*, slam_toolbox, behaviortree_cpp) or already in this workspace (rover_ros). In
-# particular, BehaviorTree.ROS2 is NOT vendored: rover_mission_manager dispatches Nav 2
-# actions through nav2_behavior_tree's BtActionNode, which ships with Nav 2, so there is no
-# source dependency to pin. Add entries here only if that stops being true.
-repositories: {}
+# Everything else rover_autonomy needs is either a binary ROS 2 package (nav2_*, slam_toolbox,
+# behaviortree_cpp, spatio_temporal_voxel_layer, pointcloud_to_laserscan) or already in this
+# workspace (rover_ros). In particular, BehaviorTree.ROS2 is NOT vendored: rover_mission_manager
+# dispatches Nav 2 actions through nav2_behavior_tree's BtActionNode, which ships with Nav 2, so
+# there is no source dependency to pin.
+repositories:
+  # Self-filter for rover_navigation's pointcloud path: crops the rover's own body out of
+  # <namespace>/rslidar_points before the costmaps see it, producing
+  # <observation_topic>_filtered for the stvl_layer's `pointcloud` source.
+  #
+  # Only needed with `observation_topic_type:=pointcloud`; the default laserscan path consumes
+  # rover_lidar's <namespace>/scan directly. Note the repository is rover_pointcloud_crop_box
+  # but the package inside it is `pointcloud_crop_box` - that is the name in package.xml and in
+  # bringup.launch.py.
+  rover_pointcloud_crop_box:
+    type: git
+    url: https://github.com/RaduPotlog/rover_pointcloud_crop_box.git
+    version: main

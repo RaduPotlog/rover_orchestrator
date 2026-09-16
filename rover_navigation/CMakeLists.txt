@@ -9,6 +9,7 @@ endif()
 set(DEPENDENCIES
     ament_cmake
     behaviortree_cpp
+    diagnostic_msgs
     lifecycle_msgs
     nav_msgs
     nav2_msgs
@@ -54,12 +55,16 @@ install(TARGETS map_autosaver_node DESTINATION lib/${PROJECT_NAME})
 add_library(is_motion_locked_bt_node SHARED src/plugins/condition/is_motion_locked.cpp)
 list(APPEND plugin_libs is_motion_locked_bt_node)
 
+add_library(is_lidar_healthy_bt_node SHARED src/plugins/condition/is_lidar_healthy.cpp)
+list(APPEND plugin_libs is_lidar_healthy_bt_node)
+
 foreach(bt_plugin ${plugin_libs})
     target_include_directories(${bt_plugin} PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>)
     target_link_libraries(${bt_plugin}
         ${behaviortree_cpp_TARGETS}
+        ${diagnostic_msgs_TARGETS}
         ${rclcpp_TARGETS}
         ${std_msgs_TARGETS})
     target_compile_definitions(${bt_plugin} PRIVATE BT_PLUGIN_EXPORT)

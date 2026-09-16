@@ -20,6 +20,7 @@
 #include <string>
 
 #include <behaviortree_cpp/bt_factory.h>
+#include <diagnostic_msgs/msg/diagnostic_array.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/battery_state.hpp>
 #include <std_msgs/msg/bool.hpp>
@@ -66,6 +67,7 @@ private:
 
     void motionLockCb(const std_msgs::msg::Bool::SharedPtr msg);
     void batteryCb(const sensor_msgs::msg::BatteryState::SharedPtr msg);
+    void diagnosticsCb(const diagnostic_msgs::msg::DiagnosticArray::SharedPtr msg);
 
     void runMissionCb(
         const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
@@ -87,12 +89,16 @@ private:
     rclcpp::TimerBase::SharedPtr mission_tree_timer_;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr motion_lock_sub_;
     rclcpp::Subscription<sensor_msgs::msg::BatteryState>::SharedPtr battery_sub_;
+    rclcpp::Subscription<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr diagnostics_sub_;
     rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr run_mission_srv_;
 
     std::atomic<bool> motion_locked_;
     std::atomic<bool> motion_lock_received_;
     std::atomic<rcl_time_point_value_t> motion_lock_stamp_ns_;
     std::atomic<double> battery_fraction_;
+    std::atomic<unsigned char> lidar_level_;
+    std::atomic<bool> lidar_status_received_;
+    std::atomic<rcl_time_point_value_t> lidar_stamp_ns_;
 };
 
 }  // namespace rover_mission_manager::infrastructure

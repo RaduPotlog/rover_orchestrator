@@ -77,13 +77,21 @@ def generate_launch_description():
     )
     declare_observation_topic_arg = DeclareLaunchArgument(
         "observation_topic",
-        default_value="",
-        description="Topic name for LaserScan or PointCloud2 observation messages type.",
+        default_value="scan",
+        description=(
+            "Topic feeding the costmaps' stvl_layer. With observation_topic_type:=laserscan "
+            "this is rover_lidar's LaserScan ('scan'). With pointcloud it is the raw cloud "
+            "('rslidar_points'), which pointcloud_crop_box self-filters into "
+            "<observation_topic>_filtered."
+        ),
     )
     declare_observation_topic_type_arg = DeclareLaunchArgument(
         "observation_topic_type",
-        default_value="pointcloud",
-        description="Observation topic type.",
+        default_value="laserscan",
+        description=(
+            "Observation topic type. 'laserscan' consumes rover_lidar's flattened scan "
+            "directly; 'pointcloud' runs pointcloud_crop_box over the raw RS16 cloud first."
+        ),
         choices=["laserscan", "pointcloud"],
     )
     declare_params_file_arg = DeclareLaunchArgument(
@@ -138,6 +146,9 @@ def generate_launch_description():
     param_substitutions = {"use_sim_time": use_sim_time, "yaml_filename": map}
 
     namespace_ext = PythonExpression(["'", namespace, "' + '/' if '", namespace, "' else ''"])
+    # What amcl and slam_toolbox subscribe to. Both need a LaserScan, so in pointcloud mode
+    # observation_topic names a PointCloud2 and cannot be used here -- fall back to 'scan',
+    # which rover_lidar publishes in both modes (its pointcloud_to_laserscan always runs).
     scan_topic = PythonExpression(
         [
             "'scan' if '",
@@ -145,14 +156,6 @@ def generate_launch_description():
             "' == 'pointcloud' else '",
             observation_topic,
             "'",
-        ]
-    )
-
-    stvl_layer = PythonExpression(
-        [
-            "'stvl_pointcloud_layer' if '",
-            observation_topic_type,
-            "' == 'pointcloud' else 'stvl_laserscan_layer'",
         ]
     )
 
@@ -183,6 +186,8 @@ def generate_launch_description():
             "max_z": 0.5,
         },
     }
+    # Output of pointcloud_crop_box, and the topic the stvl_layer's `pointcloud` source
+    # reads. Only produced in pointcloud mode.
     observation_topic_filtered = PythonExpression(
         ["'", observation_topic, "_filtered'"],
     )
@@ -203,7 +208,6 @@ def generate_launch_description():
                 "<observation_topic>": observation_topic,
                 "<observation_topic_type>": observation_topic_type,
                 "<scan_topic>": scan_topic,
-                "<stvl_layer>": stvl_layer,
             },
             condition=IfCondition(
                 PythonExpression(["'", robot_model, f"' == '{robot_model_name}'"])
@@ -226,27 +230,24 @@ def generate_launch_description():
     bringup_cmd_group = GroupAction(
         [
             PushRosNamespace(namespace),
-            # Node(
-            #     condition=IfCondition(
-            #         PythonExpression(["'", observation_topic_type, "' == 'pointcloud'"])
-            #     ),
-            #     package="pointcloud_crop_box",
-            #     executable="pointcloud_crop_box_node",
-            #     name="pointcloud_crop_box",
-            #     parameters=[configured_params],
-            #     output="screen",
-            # ),
-            # Node(
-            #     condition=IfCondition(
-            #         PythonExpression(["'", observation_topic_type, "' == 'pointcloud'"])
-            #     ),
-            #     package="pointcloud_to_laserscan",
-            #     executable="pointcloud_to_laserscan_node",
-            #     name="pointcloud_to_laserscan",
-            #     parameters=[configured_params],
-            #     remappings=[("cloud_in", observation_topic_filtered)],
-            #     output="screen",
-            # ),
+            # Strips the rover's own body out of the raw RS16 cloud before it reaches the
+            # costmaps. Only needed on the pointcloud path: in laserscan mode the stvl_layer
+            # clears the footprint itself via update_footprint_enabled.
+            #
+            # There is deliberately NO pointcloud_to_laserscan node here -- rover_lidar owns
+            # that conversion and already publishes <ns>/scan, so a second one would
+            # double-publish the topic.
+            Node(
+                condition=IfCondition(
+                    PythonExpression(["'", observation_topic_type, "' == 'pointcloud'"])
+                ),
+                package="pointcloud_crop_box",
+                executable="pointcloud_crop_box_node",
+                name="pointcloud_crop_box",
+                parameters=[configured_params],
+                arguments=["--ros-args", "--log-level", log_level],
+                output="screen",
+            ),
             Node(
                 condition=IfCondition(use_composition),
                 name="nav2_container",

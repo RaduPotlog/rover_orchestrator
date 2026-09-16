@@ -40,7 +40,10 @@ MissionManagerNode::MissionManagerNode(
   motion_locked_(true),
   motion_lock_received_(false),
   motion_lock_stamp_ns_(0),
-  battery_fraction_(-1.0)
+  battery_fraction_(-1.0),
+  lidar_level_(diagnostic_msgs::msg::DiagnosticStatus::OK),
+  lidar_status_received_(false),
+  lidar_stamp_ns_(0)
 {
     param_listener_ =
         std::make_shared<mission_manager::ParamListener>(this->get_node_parameters_interface());
@@ -102,7 +105,7 @@ void MissionManagerNode::initialize()
 
     run_mission_use_case_ = std::make_unique<application::RunMissionUseCase>(
         std::move(navigation), std::move(status_publisher),
-        domain::MissionPolicy(params_.abort_battery_fraction));
+        domain::MissionPolicy(params_.abort_battery_fraction, params_.require_lidar));
 
     motion_lock_sub_ = this->create_subscription<std_msgs::msg::Bool>(
         params_.motion_lock_topic, rclcpp::QoS(rclcpp::KeepLast(1)).reliable(),
@@ -111,6 +114,12 @@ void MissionManagerNode::initialize()
     battery_sub_ = this->create_subscription<sensor_msgs::msg::BatteryState>(
         params_.battery_topic, rclcpp::SensorDataQoS(),
         std::bind(&MissionManagerNode::batteryCb, this, std::placeholders::_1));
+
+    // Depth 20, not KeepLast(1): /diagnostics is shared by every node on the rover, so a
+    // depth-1 queue would routinely drop the one status this node watches.
+    diagnostics_sub_ = this->create_subscription<diagnostic_msgs::msg::DiagnosticArray>(
+        params_.lidar_health_topic, rclcpp::QoS(rclcpp::KeepLast(20)).reliable(),
+        std::bind(&MissionManagerNode::diagnosticsCb, this, std::placeholders::_1));
 
     run_mission_srv_ = this->create_service<std_srvs::srv::SetBool>(
         "run_mission", std::bind(
@@ -169,6 +178,21 @@ void MissionManagerNode::batteryCb(const sensor_msgs::msg::BatteryState::SharedP
     }
 }
 
+void MissionManagerNode::diagnosticsCb(
+    const diagnostic_msgs::msg::DiagnosticArray::SharedPtr msg)
+{
+    for (const auto & status : msg->status) {
+        if (status.name != params_.lidar_status_name) {
+            continue;
+        }
+
+        lidar_level_ = static_cast<unsigned char>(status.level);
+        lidar_stamp_ns_ = this->now().nanoseconds();
+        lidar_status_received_ = true;
+        return;
+    }
+}
+
 domain::RoverConditions MissionManagerNode::currentConditions() const
 {
     domain::RoverConditions conditions;
@@ -187,6 +211,27 @@ domain::RoverConditions MissionManagerNode::currentConditions() const
     }
 
     conditions.battery_fraction = battery_fraction_.load();
+
+    // Deliberately NOT fail-safe on "never seen", unlike the motion lock: the rover runs
+    // without a lidar whenever ROVER_USE_LIDAR is false, and rover_lidar sits behind a 10 s
+    // TimerAction in rover_bringup even when it is true. require_lidar is the opt-in.
+    if (!lidar_status_received_) {
+        conditions.lidar_health = domain::SensorHealth::kUnknown;
+    } else {
+        const auto age_ns = this->now().nanoseconds() - lidar_stamp_ns_.load();
+        const auto timeout_ns =
+            static_cast<rcl_time_point_value_t>(params_.lidar_health_timeout * 1e9);
+        const auto level = lidar_level_.load();
+
+        // OK and WARN are both usable: rover_lidar raises WARN for a sparse cloud or a rate
+        // below min_rate_ratio, which degrades the costmaps but does not invalidate them.
+        const bool usable = level == diagnostic_msgs::msg::DiagnosticStatus::OK ||
+                            level == diagnostic_msgs::msg::DiagnosticStatus::WARN;
+
+        conditions.lidar_health = (age_ns > timeout_ns || !usable)
+                                      ? domain::SensorHealth::kUnhealthy
+                                      : domain::SensorHealth::kHealthy;
+    }
 
     return conditions;
 }
