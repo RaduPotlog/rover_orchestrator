@@ -28,14 +28,26 @@ repositories:
   # be built from source. The tag below matches the installed ros-lyrical-nav2-* debs
   # (1.5.1) exactly, so headers and ABI line up.
   #
-  # vcstool cannot express a sparse checkout, and a full `vcs import` of this entry would
-  # put ~40 navigation2 packages in the build, shadowing the debs. After importing, prune
-  # it down to the one package we actually build:
+  # vcstool cannot express a sparse checkout, so importing this entry brings the whole
+  # repository with it - 46 packages by colcon's count. Prune it down to the one package we
+  # build, every time, before anything else walks src/:
   #
-  #   git -C src/third_party/navigation2 sparse-checkout init --cone
-  #   git -C src/third_party/navigation2 sparse-checkout set nav2_smac_planner
+  #   git -C src/navigation2 sparse-checkout init --cone
+  #   git -C src/navigation2 sparse-checkout set nav2_smac_planner
   #
-  # Build dep not covered by the debs: ros-lyrical-ompl.
+  # That prune is required, not a size saving. `rosdep resolve nav2_smac_planner` returns
+  # ros-<distro>-nav2-smac-planner, which does not exist on arm64, so `rosdep install -i`
+  # only gets past that key because the source is in src/ - and left unpruned, the rest of the
+  # repository makes rosdep resolve those packages' deps (measured: ros-gz-bridge,
+  # nav2-minimal-tb3-sim, nav2-minimal-tb4-sim, qt6-scxml-dev) instead of installing the
+  # Nav 2 debs, while colcon rebuilds the whole stack from source on top of them.
+  #
+  # rover_docker/rover_a1_orchestrator/Dockerfile does this in the same RUN as the import.
+  # Note the path is src/navigation2 - vcs import names the directory after the key below.
+  #
+  # No extra apt packages are needed: ompl, nlohmann-json and angles are declared in
+  # nav2_smac_planner's own package.xml, so the same rosdep pass installs them once the
+  # pruned checkout is present.
   navigation2:
     type: git
     url: https://github.com/ros-navigation/navigation2.git
