@@ -29,7 +29,6 @@ from launch_ros.descriptions import ComposableNode, ParameterFile
 from nav2_common.launch import RewrittenYaml
 
 def generate_launch_description():
-    bringup_dir = get_package_share_directory("nav2_bringup")
     rover_dir = get_package_share_directory("rover_navigation")
 
     namespace = LaunchConfiguration("namespace")
@@ -81,7 +80,7 @@ def generate_launch_description():
 
     declare_params_file_cmd = DeclareLaunchArgument(
         "params_file",
-        default_value=os.path.join(bringup_dir, "params", "nav2_params.yaml"),
+        default_value=os.path.join(rover_dir, "config", "rover_nav_params.yaml"),
         description="Path to the parameters file to use for all nav2 related nodes",
     )
 

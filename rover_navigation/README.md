@@ -126,9 +126,9 @@ Arguments of `bringup.launch.py` (`ros2 launch rover_navigation bringup.launch.p
 | `use_sim_time` | `False` | Use the Gazebo clock. |
 | `container_name` | `nav2_container` | Container the composable nodes are loaded into. |
 
-The two sub-launch files can also be run on their own, but both default `params_file` to a
-path inside `nav2_bringup`, so always pass it explicitly. `localization.launch.py` has no
-default for `map`:
+The two sub-launch files can also be run on their own; both default `params_file` to this
+package's own `config/rover_nav_params.yaml`, the same file `bringup.launch.py` passes down.
+`localization.launch.py` has no default for `map`:
 
 ```bash
 # navigation servers only
