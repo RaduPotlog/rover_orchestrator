@@ -22,6 +22,7 @@
 
 #include <behaviortree_cpp/condition_node.h>
 #include <diagnostic_msgs/msg/diagnostic_array.hpp>
+#include <nav2_ros_common/lifecycle_node.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 namespace rover_navigation
@@ -90,8 +91,10 @@ private:
   /** @brief True when the lidar is streaming usable data, or is legitimately absent. */
   bool isHealthy() const;
 
-  rclcpp::Node::SharedPtr node_;
-  rclcpp::Subscription<DiagnosticArrayMsg>::SharedPtr diagnostics_sub_;
+  // Nav 2 1.5.x puts a nav2::LifecycleNode on the BT blackboard under "node";
+  // asking for an rclcpp::Node makes BT::Any::convert throw at tree creation.
+  nav2::LifecycleNode::SharedPtr node_;
+  nav2::Subscription<DiagnosticArrayMsg>::SharedPtr diagnostics_sub_;
   rclcpp::CallbackGroup::SharedPtr callback_group_;
   rclcpp::executors::SingleThreadedExecutor callback_group_executor_;
   std::thread callback_group_executor_thread_;

@@ -13,6 +13,7 @@ set(DEPENDENCIES
     lifecycle_msgs
     nav_msgs
     nav2_msgs
+    nav2_ros_common
     rclcpp
     std_msgs)
 
@@ -65,6 +66,7 @@ foreach(bt_plugin ${plugin_libs})
     target_link_libraries(${bt_plugin}
         ${behaviortree_cpp_TARGETS}
         ${diagnostic_msgs_TARGETS}
+        ${nav2_ros_common_TARGETS}
         ${rclcpp_TARGETS}
         ${std_msgs_TARGETS})
     target_compile_definitions(${bt_plugin} PRIVATE BT_PLUGIN_EXPORT)

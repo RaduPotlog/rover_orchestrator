@@ -35,22 +35,24 @@ IsLidarHealthy::IsLidarHealthy(const std::string & condition_name, const BT::Nod
   getInput("timeout", timeout_);
   getInput("require_present", require_present_);
 
-  node_ = config().blackboard->get<rclcpp::Node::SharedPtr>("node");
+  node_ = config().blackboard->get<nav2::LifecycleNode::SharedPtr>("node");
 
   callback_group_ =
     node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive, false);
   callback_group_executor_.add_callback_group(callback_group_, node_->get_node_base_interface());
   callback_group_executor_thread_ = std::thread([this]() { callback_group_executor_.spin(); });
 
-  rclcpp::SubscriptionOptions sub_option;
-  sub_option.callback_group = callback_group_;
-
   // Depth 20, not the KeepLast(1) IsMotionLocked uses: /diagnostics is shared by every node
   // on the rover (battery, drivers, GPS, LEDs, safety), so a depth-1 queue would routinely
   // drop the one message this node cares about. diagnostic_updater publishes reliably.
+  //
+  // nav2::LifecycleNode::create_subscription takes (topic, callback, qos, callback_group) -
+  // note the argument order differs from rclcpp's, and the group replaces SubscriptionOptions.
   diagnostics_sub_ = node_->create_subscription<DiagnosticArrayMsg>(
-    topic_, rclcpp::QoS(rclcpp::KeepLast(20)).reliable(),
-    std::bind(&IsLidarHealthy::diagnosticsCb, this, std::placeholders::_1), sub_option);
+    topic_,
+    std::bind(&IsLidarHealthy::diagnosticsCb, this, std::placeholders::_1),
+    rclcpp::QoS(rclcpp::KeepLast(20)).reliable(),
+    callback_group_);
 }
 
 IsLidarHealthy::~IsLidarHealthy()

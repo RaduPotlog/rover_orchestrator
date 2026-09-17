@@ -31,22 +31,24 @@ IsMotionLocked::IsMotionLocked(const std::string & condition_name, const BT::Nod
   getInput("topic", topic_);
   getInput("timeout", timeout_);
 
-  node_ = config().blackboard->get<rclcpp::Node::SharedPtr>("node");
+  node_ = config().blackboard->get<nav2::LifecycleNode::SharedPtr>("node");
 
   callback_group_ =
     node_->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive, false);
   callback_group_executor_.add_callback_group(callback_group_, node_->get_node_base_interface());
   callback_group_executor_thread_ = std::thread([this]() { callback_group_executor_.spin(); });
 
-  rclcpp::SubscriptionOptions sub_option;
-  sub_option.callback_group = callback_group_;
-
   // rover_motion_lock_node publishes KeepLast(1) + reliable + VOLATILE
   // (rover_twist_mux/src/infrastructure/motion_lock_node.cpp). Requesting transient_local
   // here would make the subscription QoS-incompatible and it would silently never connect.
+  //
+  // nav2::LifecycleNode::create_subscription takes (topic, callback, qos, callback_group) -
+  // note the argument order differs from rclcpp's, and the group replaces SubscriptionOptions.
   motion_lock_sub_ = node_->create_subscription<BoolMsg>(
-    topic_, rclcpp::QoS(rclcpp::KeepLast(1)).reliable(),
-    std::bind(&IsMotionLocked::motionLockCb, this, std::placeholders::_1), sub_option);
+    topic_,
+    std::bind(&IsMotionLocked::motionLockCb, this, std::placeholders::_1),
+    rclcpp::QoS(rclcpp::KeepLast(1)).reliable(),
+    callback_group_);
 }
 
 IsMotionLocked::~IsMotionLocked()

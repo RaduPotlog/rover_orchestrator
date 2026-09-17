@@ -19,3 +19,24 @@ repositories:
     type: git
     url: https://github.com/RaduPotlog/rover_pointcloud_crop_box.git
     version: master
+
+  # nav2_smac_planner: planner_server's GridBased plugin
+  # (config/rover_nav_params.yaml -> nav2_smac_planner::SmacPlanner2D).
+  #
+  # Every other nav2_* package this stack needs has an arm64 binary on lyrical/resolute;
+  # nav2_smac_planner is the single exception - it is absent from the sync, so it has to
+  # be built from source. The tag below matches the installed ros-lyrical-nav2-* debs
+  # (1.5.1) exactly, so headers and ABI line up.
+  #
+  # vcstool cannot express a sparse checkout, and a full `vcs import` of this entry would
+  # put ~40 navigation2 packages in the build, shadowing the debs. After importing, prune
+  # it down to the one package we actually build:
+  #
+  #   git -C src/third_party/navigation2 sparse-checkout init --cone
+  #   git -C src/third_party/navigation2 sparse-checkout set nav2_smac_planner
+  #
+  # Build dep not covered by the debs: ros-lyrical-ompl.
+  navigation2:
+    type: git
+    url: https://github.com/ros-navigation/navigation2.git
+    version: 1.5.1

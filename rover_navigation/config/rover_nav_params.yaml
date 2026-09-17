@@ -78,7 +78,12 @@
         transform_tolerance: 0.1
         temperature: 0.3
         gamma: 0.015
+        # Nav 2 1.5.x: motion_model names a plugin *namespace*, not an enum value.
+        # Optimizer::setMotionModel() resolves <controller>.<motion_model>.plugin via
+        # get_plugin_type_param(), which throws if the block below is missing.
         motion_model: DiffDrive
+        DiffDrive:
+          plugin: mppi::DiffDriveMotionModel
         regenerate_noises: true
         visualize: false
         AckermannConstraints:

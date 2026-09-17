@@ -21,6 +21,7 @@
 #include <thread>
 
 #include <behaviortree_cpp/condition_node.h>
+#include <nav2_ros_common/lifecycle_node.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/bool.hpp>
 
@@ -70,8 +71,10 @@ private:
   /** @brief True when the lock is engaged, or when no fresh message is available. */
   bool isLocked() const;
 
-  rclcpp::Node::SharedPtr node_;
-  rclcpp::Subscription<BoolMsg>::SharedPtr motion_lock_sub_;
+  // Nav 2 1.5.x puts a nav2::LifecycleNode on the BT blackboard under "node";
+  // asking for an rclcpp::Node makes BT::Any::convert throw at tree creation.
+  nav2::LifecycleNode::SharedPtr node_;
+  nav2::Subscription<BoolMsg>::SharedPtr motion_lock_sub_;
   rclcpp::CallbackGroup::SharedPtr callback_group_;
   rclcpp::executors::SingleThreadedExecutor callback_group_executor_;
   std::thread callback_group_executor_thread_;

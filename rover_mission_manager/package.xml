@@ -23,6 +23,9 @@
   <depend>std_msgs</depend>
   <depend>std_srvs</depend>
 
+  <!-- nav2_navigate_to_pose_action_bt_node / nav2_navigate_through_poses_action_bt_node,
+       loaded by name at runtime via config/mission_manager.yaml plugin_libs. -->
+  <exec_depend>nav2_behavior_tree</exec_depend>
   <!-- is_motion_locked_bt_node, loaded by name at runtime via plugin_libs. -->
   <exec_depend>rover_navigation</exec_depend>
 
