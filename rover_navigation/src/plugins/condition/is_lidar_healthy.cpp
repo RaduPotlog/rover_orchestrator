@@ -26,7 +26,7 @@ IsLidarHealthy::IsLidarHealthy(const std::string & condition_name, const BT::Nod
   status_received_(false),
   last_msg_time_ns_(0),
   topic_("diagnostics"),
-  status_name_("rover_lidar_node: Lidar status"),
+  status_name_("rover_rs16_lidar_node: Lidar status"),
   timeout_(3.0),
   require_present_(false)
 {
@@ -92,7 +92,7 @@ bool IsLidarHealthy::isHealthy() const
     }
   }
 
-  // OK and WARN are both usable: rover_lidar raises WARN for a sparse cloud or a rate below
+  // OK and WARN are both usable: rover_rs16_lidar raises WARN for a sparse cloud or a rate below
   // min_rate_ratio, which degrades the costmap but does not invalidate it. ERROR is a cloud
   // timeout and STALE is "no data yet" -- neither may be driven on.
   const auto level = last_level_.load();

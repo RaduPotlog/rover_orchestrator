@@ -26,7 +26,7 @@ source install/setup.bash
 Start the rover (real hardware or simulation), then start navigation:
 
 On hardware the rover must be started with `ROVER_USE_LIDAR=true`: both Nav 2 costmaps mark
-and clear from `rover_lidar`'s `<namespace>/scan`, and the navigation trees stop driving when
+and clear from `rover_rs16_lidar`'s `<namespace>/scan`, and the navigation trees stop driving when
 its diagnostics go bad. Without a lidar navigation still comes up, but drives blind.
 
 ```bash
@@ -54,6 +54,6 @@ must be the same value for both launch files above. See
 frames and known limitations.
 
 `observation_topic_type` defaults to `laserscan` / `observation_topic` to `scan`, which is the
-`rover_lidar` path and needs no extra arguments. `pointcloud` runs `pointcloud_crop_box` over
+`rover_rs16_lidar` path and needs no extra arguments. `pointcloud` runs `pointcloud_crop_box` over
 the raw RS16 cloud instead — `vcs import` it from
 [`rover_autonomy/autonomy_deps.repos`](rover_autonomy/autonomy_deps.repos) first.

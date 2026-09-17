@@ -68,7 +68,7 @@ decides whether waypoints are interpreted in `<namespace>/odom` or `<namespace>/
 |---|---|---|
 | in | `motion_lock` | `std_msgs/Bool` — from `rover_motion_lock_node` |
 | in | `battery` | `sensor_msgs/BatteryState` |
-| in | `diagnostics` | `diagnostic_msgs/DiagnosticArray` — `rover_lidar`'s health task |
+| in | `diagnostics` | `diagnostic_msgs/DiagnosticArray` — `rover_rs16_lidar`'s health task |
 | out | `mission_status` | `std_msgs/String`, latched |
 | service | `run_mission` | `std_srvs/SetBool` — `false` cancels |
 | action client | `navigate_to_pose` | `nav2_msgs/action/NavigateToPose` |
@@ -97,8 +97,8 @@ battery is ignored entirely until the first `BatteryState` with a non-NaN `perce
 
 A dead lidar is a **hold** too, for the same reason as the lock: Nav 2's costmaps stop being
 trustworthy without it, but the sensor can come back and the mission should resume on the same
-waypoint. `rover_lidar` exposes no service, no lifecycle transition and no boolean "lidar ok"
-topic, so its `diagnostic_updater` task `rover_lidar_node: Lidar status` is the only signal
+waypoint. `rover_rs16_lidar` exposes no service, no lifecycle transition and no boolean "lidar ok"
+topic, so its `diagnostic_updater` task `rover_rs16_lidar_node: Lidar status` is the only signal
 there is — the manager watches the raw `diagnostics` topic rather than `diagnostics_agg` so it
 does not depend on `rover_diag_manager`'s aggregator running. `OK` and `WARN` both count as
 usable (a sparse cloud or a low rate degrades the costmaps but does not invalidate them);
@@ -106,7 +106,7 @@ usable (a sparse cloud or a low rate degrades the costmaps but does not invalida
 
 Unlike the motion lock, this is **not** fail-safe on "never heard": `require_lidar` defaults to
 `false` so a rover booted with `ROVER_USE_LIDAR=false` still runs missions, and so that
-`rover_lidar`'s 10 s startup delay in `rover_bringup` does not block the first mission. Set
+`rover_rs16_lidar`'s 10 s startup delay in `rover_bringup` does not block the first mission. Set
 `require_lidar: true` on a rover that always carries one. The same reasoning and the same
 default apply to `IsLidarHealthy`'s `require_present` port in `rover_navigation`.
 
@@ -126,7 +126,7 @@ live there, and `config/mission_manager.yaml` carries the deployed values. Notab
 | `goal_frame_id` | `""` | Empty derives `<namespace>/odom`; the launch file sets it from `localization_source`. |
 | `motion_lock_timeout` | `0.5` s | Publisher runs at 10 Hz. |
 | `lidar_health_topic` | `diagnostics` | Raw `DiagnosticArray` topic, not `diagnostics_agg`. |
-| `lidar_status_name` | `rover_lidar_node: Lidar status` | Exact `DiagnosticStatus` name to match. |
+| `lidar_status_name` | `rover_rs16_lidar_node: Lidar status` | Exact `DiagnosticStatus` name to match. |
 | `lidar_health_timeout` | `3.0` s | `diagnostic_updater` publishes at 1 Hz. |
 | `require_lidar` | `false` | When true, a never-seen lidar status holds the mission. |
 | `abort_battery_fraction` | `0.10` | 0..1, matching `BatteryState::percentage`. |

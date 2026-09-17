@@ -114,7 +114,7 @@
           cost_power: 1
           cost_weight: 3.81
           critical_cost: 300.0
-          # Full-footprint collision checking, enabled now that rover_lidar marks the
+          # Full-footprint collision checking, enabled now that rover_rs16_lidar marks the
           # costmap. The footprint sweep over 800x40 trajectory points is the dominant cost
           # in the control loop: if `ros2 topic hz <ns>/nav_cmd_vel_stamped` drops below the
           # 10 Hz controller_frequency on the orchestrator computer, set this back to false
@@ -208,7 +208,7 @@
           track_unknown_space: true
           unknown_threshold: 15
           mark_threshold: 0
-          # Clears the rover's own returns out of the footprint. rover_lidar's flattener
+          # Clears the rover's own returns out of the footprint. rover_rs16_lidar's scan projection
           # applies no self-filter, and the RS16's 360 deg x +/-15 deg field sees the rover
           # body, so this is what keeps the footprint from becoming a permanent obstacle ring.
           update_footprint_enabled: true
@@ -243,7 +243,7 @@
             horizontal_fov_angle: 6.2832
             decay_acceleration: 15.0
             model_type: 0
-          # The default path: <ns>/scan from rover_lidar's pointcloud_to_laserscan.
+          # The default path: <ns>/scan, projected from the RS16 cloud by rover_rs16_lidar.
           laserscan:
             data_type: LaserScan
             topic: <observation_topic>
@@ -252,10 +252,10 @@
             obstacle_range: 3.0
             min_obstacle_height: 0.0
             max_obstacle_height: 2.0
-            # rover_lidar runs at 10 Hz; makes STVL complain when the scan stops.
+            # rover_rs16_lidar runs at 10 Hz; makes STVL complain when the scan stops.
             expected_update_rate: 0.5
             observation_persistence: 0.0
-            # rover_lidar's flattener sets use_inf: true, so no-return beams arrive as +inf.
+            # rover_rs16_lidar sets scan.use_inf: true, so no-return beams arrive as +inf.
             # Discarding them would stop STVL clearing free space along an empty ray.
             inf_is_valid: true
             filter: "voxel"
@@ -309,7 +309,7 @@
           track_unknown_space: true
           unknown_threshold: 15
           mark_threshold: 0
-          # Clears the rover's own returns out of the footprint. rover_lidar's flattener
+          # Clears the rover's own returns out of the footprint. rover_rs16_lidar's scan projection
           # applies no self-filter, and the RS16's 360 deg x +/-15 deg field sees the rover
           # body, so this is what keeps the footprint from becoming a permanent obstacle ring.
           update_footprint_enabled: true
@@ -344,7 +344,7 @@
             horizontal_fov_angle: 6.2832
             decay_acceleration: 15.0
             model_type: 0
-          # The default path: <ns>/scan from rover_lidar's pointcloud_to_laserscan.
+          # The default path: <ns>/scan, projected from the RS16 cloud by rover_rs16_lidar.
           laserscan:
             data_type: LaserScan
             topic: <observation_topic>
@@ -353,10 +353,10 @@
             obstacle_range: 8.0
             min_obstacle_height: 0.0
             max_obstacle_height: 2.0
-            # rover_lidar runs at 10 Hz; makes STVL complain when the scan stops.
+            # rover_rs16_lidar runs at 10 Hz; makes STVL complain when the scan stops.
             expected_update_rate: 0.5
             observation_persistence: 0.0
-            # rover_lidar's flattener sets use_inf: true, so no-return beams arrive as +inf.
+            # rover_rs16_lidar sets scan.use_inf: true, so no-return beams arrive as +inf.
             # Discarding them would stop STVL clearing free space along an empty ray.
             inf_is_valid: true
             filter: "voxel"
@@ -509,7 +509,7 @@
 
       laser_model_type: likelihood_field
       laser_likelihood_max_dist: 2.0
-      # Matches rover_lidar's pointcloud_to_laserscan range_max (20.0 m).
+      # Matches rover_rs16_lidar's scan.range_max (20.0 m).
       laser_max_range: 20.0
       laser_min_range: -1.0
 
@@ -587,7 +587,7 @@
       transform_publish_period: 0.04
       map_update_interval: 1.0
       resolution: 0.05
-      # Matches rover_lidar's pointcloud_to_laserscan range_max (20.0 m).
+      # Matches rover_rs16_lidar's scan.range_max (20.0 m).
       max_laser_range: 20.0
       minimum_time_interval: 0.05
       transform_timeout: 0.5

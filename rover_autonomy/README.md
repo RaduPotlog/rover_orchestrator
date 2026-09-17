@@ -26,7 +26,7 @@ vcs import src < src/rover_orchestrator/rover_autonomy/autonomy_deps.repos
 ```
 
 That is only needed for `observation_topic_type:=pointcloud`. The default laserscan path
-consumes `rover_lidar`'s `<namespace>/scan` directly and needs nothing extra.
+consumes `rover_rs16_lidar`'s `<namespace>/scan` directly and needs nothing extra.
 
 Note `rover_navigation` is deliberately **not** part of `rover_ros`'s `rover_metapackage`:
 the rover computer and the orchestrator computer build different things.

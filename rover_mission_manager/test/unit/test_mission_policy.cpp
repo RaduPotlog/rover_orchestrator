@@ -93,7 +93,7 @@ TEST(MissionPolicyTest, ClampsAnOutOfRangeThreshold)
 
 // --- Lidar health -----------------------------------------------------------------------
 //
-// rover_lidar's only health signal is a diagnostic_updater task, so these rules are what
+// rover_rs16_lidar's only health signal is a diagnostic_updater task, so these rules are what
 // turns "the sensor feeding the costmaps died" into a decision the mission can act on.
 
 TEST(MissionPolicyTest, HoldsWhenTheLidarIsUnhealthy)
@@ -131,7 +131,7 @@ TEST(MissionPolicyTest, AnUnknownLidarProceedsByDefault)
     conditions.battery_fraction = 0.8;
     conditions.lidar_health = SensorHealth::kUnknown;
 
-    // ROVER_USE_LIDAR=false is a supported configuration, and rover_lidar only starts after a
+    // ROVER_USE_LIDAR=false is a supported configuration, and rover_rs16_lidar only starts after a
     // 10 s TimerAction when it is true. Failing closed here would make the mission unusable.
     EXPECT_EQ(policy.decide(conditions), MissionAction::kProceed);
 }

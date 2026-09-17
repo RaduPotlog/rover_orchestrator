@@ -40,7 +40,7 @@ struct RoverConditions
     /** @brief Battery state of charge, 0..1. Negative means "not known yet". */
     double battery_fraction = -1.0;
 
-    /** @brief Health of rover_lidar, from its diagnostic_updater task. */
+    /** @brief Health of rover_rs16_lidar, from its diagnostic_updater task. */
     SensorHealth lidar_health = SensorHealth::kUnknown;
 };
 

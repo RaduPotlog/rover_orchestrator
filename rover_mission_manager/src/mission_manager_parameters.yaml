@@ -66,15 +66,15 @@ mission_manager:
     type: string
     default_value: "diagnostics"
     description: >
-      diagnostic_msgs/DiagnosticArray topic carrying rover_lidar's health task. The raw
+      diagnostic_msgs/DiagnosticArray topic carrying rover_rs16_lidar's health task. The raw
       /diagnostics topic is watched rather than diagnostics_agg so this does not depend on
       rover_diag_manager's aggregator running.
 
   lidar_status_name:
     type: string
-    default_value: "rover_lidar_node: Lidar status"
+    default_value: "rover_rs16_lidar_node: Lidar status"
     description: >
-      Exact DiagnosticStatus name to match. rover_lidar registers the task as "Lidar status"
+      Exact DiagnosticStatus name to match. rover_rs16_lidar registers the task as "Lidar status"
       with hardware ID RoverLidar; the node name is prefixed by diagnostic_updater.
 
   lidar_health_timeout:

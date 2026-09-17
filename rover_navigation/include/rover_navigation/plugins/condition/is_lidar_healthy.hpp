@@ -31,7 +31,7 @@ namespace rover_navigation
 /**
  * @brief A BT::ConditionNode that returns SUCCESS while the lidar is healthy.
  *
- * rover_lidar exposes no service, no lifecycle transition and no boolean "lidar ok" topic --
+ * rover_rs16_lidar exposes no service, no lifecycle transition and no boolean "lidar ok" topic --
  * its only health signal is a diagnostic_updater task named "Lidar status" on
  * `<namespace>/diagnostics`. This node watches that one status so the costmaps are never
  * trusted while the sensor feeding them is dead.
@@ -41,12 +41,12 @@ namespace rover_navigation
  *
  * Levels map as follows:
  *   - OK / WARN                     -> SUCCESS. WARN is a sparse cloud or a low rate: still
- *                                      usable data, and rover_lidar warns readily.
+ *                                      usable data, and rover_rs16_lidar warns readily.
  *   - ERROR / STALE, or the last matching status older than `timeout` -> FAILURE.
  *   - status never seen at all      -> SUCCESS, unless `require_present` is true.
  *
  * That last rule is deliberately NOT fail-safe, and differs from IsMotionLocked. The rover
- * runs without a lidar whenever ROVER_USE_LIDAR is false, and rover_lidar sits behind a 10 s
+ * runs without a lidar whenever ROVER_USE_LIDAR is false, and rover_rs16_lidar sits behind a 10 s
  * TimerAction in rover_bringup even when it is true. Failing closed on "never seen" would
  * make navigation unusable in both cases. Set require_present="true" on a rover that is
  * always fitted with a lidar to get the strict behaviour.
@@ -70,7 +70,7 @@ public:
       BT::InputPort<std::string>(
         "topic", "diagnostics", "diagnostic_msgs/DiagnosticArray topic to watch"),
       BT::InputPort<std::string>(
-        "status_name", "rover_lidar_node: Lidar status",
+        "status_name", "rover_rs16_lidar_node: Lidar status",
         "Exact DiagnosticStatus name to match. rover_diag_manager's aggregator rewrites this "
         "to '/Rover/Lidar/Lidar status' on diagnostics_agg; the raw topic is watched instead "
         "so this does not depend on the aggregator running."),

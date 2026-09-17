@@ -12,7 +12,7 @@ repositories:
   # <observation_topic>_filtered for the stvl_layer's `pointcloud` source.
   #
   # Only needed with `observation_topic_type:=pointcloud`; the default laserscan path consumes
-  # rover_lidar's <namespace>/scan directly. Note the repository is rover_pointcloud_crop_box
+  # rover_rs16_lidar's <namespace>/scan directly. Note the repository is rover_pointcloud_crop_box
   # but the package inside it is `pointcloud_crop_box` - that is the name in package.xml and in
   # bringup.launch.py.
   rover_pointcloud_crop_box:

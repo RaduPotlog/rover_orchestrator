@@ -80,7 +80,7 @@ def generate_launch_description():
         default_value="scan",
         description=(
             "Topic feeding the costmaps' stvl_layer. With observation_topic_type:=laserscan "
-            "this is rover_lidar's LaserScan ('scan'). With pointcloud it is the raw cloud "
+            "this is rover_rs16_lidar's LaserScan ('scan'). With pointcloud it is the raw cloud "
             "('rslidar_points'), which pointcloud_crop_box self-filters into "
             "<observation_topic>_filtered."
         ),
@@ -89,7 +89,7 @@ def generate_launch_description():
         "observation_topic_type",
         default_value="laserscan",
         description=(
-            "Observation topic type. 'laserscan' consumes rover_lidar's flattened scan "
+            "Observation topic type. 'laserscan' consumes rover_rs16_lidar's flattened scan "
             "directly; 'pointcloud' runs pointcloud_crop_box over the raw RS16 cloud first."
         ),
         choices=["laserscan", "pointcloud"],
@@ -148,7 +148,7 @@ def generate_launch_description():
     namespace_ext = PythonExpression(["'", namespace, "' + '/' if '", namespace, "' else ''"])
     # What amcl and slam_toolbox subscribe to. Both need a LaserScan, so in pointcloud mode
     # observation_topic names a PointCloud2 and cannot be used here -- fall back to 'scan',
-    # which rover_lidar publishes in both modes (its pointcloud_to_laserscan always runs).
+    # which rover_rs16_lidar publishes in both modes (its scan projection always runs).
     scan_topic = PythonExpression(
         [
             "'scan' if '",
@@ -234,7 +234,7 @@ def generate_launch_description():
             # costmaps. Only needed on the pointcloud path: in laserscan mode the stvl_layer
             # clears the footprint itself via update_footprint_enabled.
             #
-            # There is deliberately NO pointcloud_to_laserscan node here -- rover_lidar owns
+            # There is deliberately NO cloud-to-scan conversion here -- rover_rs16_lidar owns
             # that conversion and already publishes <ns>/scan, so a second one would
             # double-publish the topic.
             Node(

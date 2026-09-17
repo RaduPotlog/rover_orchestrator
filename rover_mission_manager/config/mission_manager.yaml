@@ -28,7 +28,7 @@
       battery_topic: battery
       abort_battery_fraction: 0.10
 
-      # rover_lidar's only health signal is this diagnostic_updater task -- it exposes no
+      # rover_rs16_lidar's only health signal is this diagnostic_updater task -- it exposes no
       # service, no lifecycle transition and no boolean "lidar ok" topic. A dead lidar is a
       # hold, not an abort: the costmaps stop being trustworthy, but the mission resumes on
       # the same waypoint once it comes back.
@@ -36,7 +36,7 @@
       # require_lidar stays false so a rover booted with ROVER_USE_LIDAR=false still runs
       # missions. Set it true on a rover that always carries a lidar.
       lidar_health_topic: diagnostics
-      lidar_status_name: "rover_lidar_node: Lidar status"
+      lidar_status_name: "rover_rs16_lidar_node: Lidar status"
       lidar_health_timeout: 3.0
       require_lidar: false
 

@@ -213,7 +213,7 @@ domain::RoverConditions MissionManagerNode::currentConditions() const
     conditions.battery_fraction = battery_fraction_.load();
 
     // Deliberately NOT fail-safe on "never seen", unlike the motion lock: the rover runs
-    // without a lidar whenever ROVER_USE_LIDAR is false, and rover_lidar sits behind a 10 s
+    // without a lidar whenever ROVER_USE_LIDAR is false, and rover_rs16_lidar sits behind a 10 s
     // TimerAction in rover_bringup even when it is true. require_lidar is the opt-in.
     if (!lidar_status_received_) {
         conditions.lidar_health = domain::SensorHealth::kUnknown;
@@ -223,7 +223,7 @@ domain::RoverConditions MissionManagerNode::currentConditions() const
             static_cast<rcl_time_point_value_t>(params_.lidar_health_timeout * 1e9);
         const auto level = lidar_level_.load();
 
-        // OK and WARN are both usable: rover_lidar raises WARN for a sparse cloud or a rate
+        // OK and WARN are both usable: rover_rs16_lidar raises WARN for a sparse cloud or a rate
         // below min_rate_ratio, which degrades the costmaps but does not invalidate them.
         const bool usable = level == diagnostic_msgs::msg::DiagnosticStatus::OK ||
                             level == diagnostic_msgs::msg::DiagnosticStatus::WARN;
