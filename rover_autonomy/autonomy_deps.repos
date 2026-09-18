@@ -28,6 +28,11 @@ repositories:
   # be built from source. The tag below matches the installed ros-lyrical-nav2-* debs
   # (1.5.1) exactly, so headers and ABI line up.
   #
+  # The URL is RaduPotlog/rover_navigation, a fork of ros-navigation/navigation2; `1.5.1` is
+  # the upstream release tag carried over into the fork. Despite the name, src/rover_navigation
+  # is this Nav 2 checkout - the rover's own rover_navigation package is
+  # src/rover_orchestrator/rover_navigation.
+  #
   # vcstool cannot express a sparse checkout, so importing this entry brings the whole
   # repository with it - 46 packages by colcon's count. Prune it down to the one package we
   # build, every time, before anything else walks src/:
