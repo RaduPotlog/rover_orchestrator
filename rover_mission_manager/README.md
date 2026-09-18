@@ -106,7 +106,8 @@ usable (a sparse cloud or a low rate degrades the costmaps but does not invalida
 
 Unlike the motion lock, this is **not** fail-safe on "never heard": `require_lidar` defaults to
 `false` so a rover booted with `ROVER_USE_LIDAR=false` still runs missions, and so that
-`rover_rs16_lidar`'s 10 s startup delay in `rover_bringup` does not block the first mission. Set
+a lidar driver that starts after the mission manager (it runs in a separate container,
+`rover-a1-sensors`) does not block the first mission. Set
 `require_lidar: true` on a rover that always carries one. The same reasoning and the same
 default apply to `IsLidarHealthy`'s `require_present` port in `rover_navigation`.
 
