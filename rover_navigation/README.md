@@ -28,7 +28,7 @@ providing:
 | TF `<namespace>/odom -> <namespace>/base_link` | `rover_localization` (EKF) |
 | TF `<namespace>/base_link -> <namespace>/lidar_link` | `rover_description` (URDF / robot_state_publisher) |
 | `odom` (`nav_msgs/Odometry`) | `rover_localization`, remapped from `odometry/filtered` |
-| `<namespace>/scan` (`sensor_msgs/LaserScan`) | `rover_rs16_lidar` on hardware (`ROVER_USE_LIDAR=true`), or the Gazebo bridge in simulation |
+| `<namespace>/scan` (`sensor_msgs/LaserScan`) | `rover_rs16_lidar` on hardware (sensor payload, `rover-a1-sensors`, `ROVER_USE_LIDAR=true`), or the Gazebo bridge in simulation |
 | `<namespace>/diagnostics` (`diagnostic_msgs/DiagnosticArray`) | `rover_rs16_lidar` — watched by the `IsLidarHealthy` BT condition |
 
 Both costmaps mark and clear from the lidar, so without it the local costmap stays empty and
@@ -84,8 +84,9 @@ ros2 launch rover_navigation bringup.launch.py \
 #### Real rover:
 
 ```bash
-# on the rover
+# on the rover: platform + sensor payload
 ros2 launch rover_bringup rover_bringup.launch.py
+ros2 launch rover_sensors_bringup rover_sensors.launch.py use_lidar:=true
 
 # on the rover or on the orchestrator computer
 ros2 launch rover_navigation bringup.launch.py \
@@ -245,8 +246,8 @@ The goal `frame_id` must match the mode: **`rover/odom`** with `localization_sou
   full 3D cloud: the RS16 cloud is XYZI with no `ring`/`time` fields, and it costs noticeably
   more CPU on the orchestrator computer.
 - **The local costmap stays empty and the rover drives into things.** Check, in order:
-  `ros2 topic hz /<ns>/scan` (is `rover_rs16_lidar` up? `ROVER_USE_LIDAR=true`, and it sits behind
-  a 10 s `TimerAction` in `rover_bringup`); then the `stvl_layer`'s `min_z`. `min_z`/`max_z`
+  `ros2 topic hz /<ns>/scan` (is `rover_rs16_lidar` up? It runs in `rover-a1-sensors` with
+  `ROVER_USE_LIDAR=true`; see `/tmp/rover_sensors.log` there); then the `stvl_layer`'s `min_z`. `min_z`/`max_z`
   are in the **global** frame, not the sensor frame. `lidar_link` sits
   `ROVER_LIDAR_LOCALIZATION_Z` above `body_link` and that variable defaults to `0.0`, so a
   scan ring lands near z=0 — the upstream STVL default of `min_z: 0.1` silently discarded

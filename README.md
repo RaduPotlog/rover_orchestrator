@@ -25,13 +25,16 @@ source install/setup.bash
 
 Start the rover (real hardware or simulation), then start navigation:
 
-On hardware the rover must be started with `ROVER_USE_LIDAR=true`: both Nav 2 costmaps mark
-and clear from `rover_rs16_lidar`'s `<namespace>/scan`, and the navigation trees stop driving when
+On hardware the sensor payload must run the lidar (`ROVER_USE_LIDAR=true`; the drivers live in
+the [`rover_sensors`](https://github.com/RaduPotlog/rover_sensors) repo, container
+`rover-a1-sensors`): both Nav 2 costmaps mark and clear from `rover_rs16_lidar`'s
+`<namespace>/scan`, and the navigation trees stop driving when
 its diagnostics go bad. Without a lidar navigation still comes up, but drives blind.
 
 ```bash
-# real rover
-ROVER_USE_LIDAR=true ros2 launch rover_bringup rover_bringup.launch.py
+# real rover: platform + sensor payload
+ros2 launch rover_bringup rover_bringup.launch.py
+ros2 launch rover_sensors_bringup rover_sensors.launch.py use_lidar:=true
 # or simulation (the Gazebo bridge publishes the same <namespace>/scan)
 ros2 launch rover_gazebo simulation.launch.py
 
