@@ -21,7 +21,8 @@ Started by bringup.launch.py in place of localization.launch.py when
 `localization_source:=slam`. In this mode slam_toolbox publishes
 <namespace>/map -> <namespace>/odom, so it must not run alongside the GPS global EKF
 (rover_ekf_global_node, enabled by ROVER_USE_GPS) or AMCL -- all three publish that
-same transform and would fight over it.
+same transform and would fight over it. GPS fusion can stay on if the global EKF's TF is
+off (ROVER_GPS_PUBLISH_MAP_TF=false / publish_global_tf:=false).
 """
 
 from launch import LaunchDescription
