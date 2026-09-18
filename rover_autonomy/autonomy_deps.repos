@@ -32,8 +32,8 @@ repositories:
   # repository with it - 46 packages by colcon's count. Prune it down to the one package we
   # build, every time, before anything else walks src/:
   #
-  #   git -C src/navigation2 sparse-checkout init --cone
-  #   git -C src/navigation2 sparse-checkout set nav2_smac_planner
+  #   git -C src/rover_navigation sparse-checkout init --cone
+  #   git -C src/rover_navigation sparse-checkout set nav2_smac_planner
   #
   # That prune is required, not a size saving. `rosdep resolve nav2_smac_planner` returns
   # ros-<distro>-nav2-smac-planner, which does not exist on arm64, so `rosdep install -i`
@@ -43,12 +43,12 @@ repositories:
   # Nav 2 debs, while colcon rebuilds the whole stack from source on top of them.
   #
   # rover_docker/rover_a1_orchestrator/Dockerfile does this in the same RUN as the import.
-  # Note the path is src/navigation2 - vcs import names the directory after the key below.
+  # Note the path is src/rover_navigation - vcs import names the directory after the key below.
   #
   # No extra apt packages are needed: ompl, nlohmann-json and angles are declared in
   # nav2_smac_planner's own package.xml, so the same rosdep pass installs them once the
   # pruned checkout is present.
-  navigation2:
+  rover_navigation:
     type: git
-    url: https://github.com/ros-navigation/navigation2.git
+    url: https://github.com/RaduPotlog/rover_navigation.git
     version: 1.5.1
