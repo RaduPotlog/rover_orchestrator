@@ -59,6 +59,4 @@ frames and known limitations.
 `observation_topic_type` defaults to `laserscan` / `observation_topic` to `scan`, which is the
 `rover_rs16_lidar` path and needs no extra arguments. `pointcloud` runs `pointcloud_crop_box` over
 the raw RS16 cloud instead — `vcs import` it from
-[`rover_autonomy/autonomy_deps.repos`](rover_autonomy/autonomy_deps.repos) first. That file
-also pins the `nav2_smac_planner` source the default planner needs, so it has to be imported
-(and pruned, see [`rover_autonomy/README.md`](rover_autonomy/README.md)) either way.
+[`rover_autonomy/autonomy_deps.repos`](rover_autonomy/autonomy_deps.repos) first.

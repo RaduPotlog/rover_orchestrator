@@ -32,8 +32,7 @@
   <exec_depend>nav2_map_server</exec_depend>
   <exec_depend>nav2_mppi_controller</exec_depend>
   <exec_depend>nav2_planner</exec_depend>
-  <!-- planner_server's GridBased plugin. No arm64 binary on lyrical/resolute - built
-       from source, see rover_autonomy/autonomy_deps.repos. -->
+  <!-- planner_server's GridBased plugin. -->
   <exec_depend>nav2_smac_planner</exec_depend>
   <exec_depend>nav2_smoother</exec_depend>
   <exec_depend>nav2_velocity_smoother</exec_depend>
