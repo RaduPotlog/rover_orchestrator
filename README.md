@@ -35,7 +35,8 @@ its diagnostics go bad. Without a lidar navigation still comes up, but drives bl
 # real rover: platform + sensor payload
 ros2 launch rover_bringup rover_bringup.launch.py
 ros2 launch rover_sensors_bringup rover_sensors.launch.py use_lidar:=true
-# or simulation (the Gazebo bridge publishes the same <namespace>/scan)
+# or simulation (publishes the same <namespace>/scan, rslidar_points and gps/fix, and runs
+# twist_mux + motion_lock like the platform; ROVER_USE_GPS=true for localization_source:=gps)
 ros2 launch rover_gazebo simulation.launch.py
 
 ros2 launch rover_navigation bringup.launch.py \

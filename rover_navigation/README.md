@@ -72,7 +72,8 @@ When navigation runs on a different machine than the rover, both must share the 
 #### Simulated rover:
 
 ```bash
-# terminal 1 - simulator, URDF, RViz, ros2_control and EKF
+# terminal 1 - simulator, URDF, RViz, ros2_control, EKF, twist_mux and the simulated
+# RS16 lidar (scan, rslidar_points) + GNSS (gps/fix); ROVER_USE_GPS=true fuses the GNSS
 ros2 launch rover_gazebo simulation.launch.py
 
 # terminal 2 - navigation
