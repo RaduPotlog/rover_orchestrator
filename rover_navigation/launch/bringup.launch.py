@@ -64,7 +64,8 @@ def generate_launch_description():
     )
     declare_map_arg = DeclareLaunchArgument(
         "map",
-        default_value="empty_world.yaml",
+        # map_server resolves the path as given, so the default must be absolute.
+        default_value=PathJoinSubstitution([rover_navigation, "map", "empty_world.yaml"]),
         description="Path to map yaml file to load.",
     )
     declare_namespace_arg = DeclareLaunchArgument(
