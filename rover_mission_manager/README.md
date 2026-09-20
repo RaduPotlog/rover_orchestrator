@@ -60,7 +60,9 @@ ros2 launch rover_mission_manager rover_mission_manager.launch.py \
 ```
 
 `localization_source` **must match what `rover_navigation` was launched with** — it is what
-decides whether waypoints are interpreted in `<namespace>/odom` or `<namespace>/map`.
+decides whether waypoints are interpreted in `<namespace>/odom` (`odom`) or
+`<namespace>/map` (`gps`, `slam`, `amcl`). `rover_navigation`'s
+`test_localization_launch.py` asserts the two argument declarations stay in sync.
 
 ## Interfaces
 
@@ -124,7 +126,7 @@ live there, and `config/mission_manager.yaml` carries the deployed values. Notab
 | `bt_server_port` | `4444` | Groot2. The next free port is used if taken, so several managers coexist. |
 | `plugin_libs` | `[is_motion_locked_bt_node]` | Plain BT.CPP plugins. Built by `rover_navigation`. |
 | `ros_plugin_libs` | *(unset)* | See the note in `config/mission_manager.yaml` — an empty YAML list is rejected by rcl, so leave it unset rather than writing `[]`. |
-| `goal_frame_id` | `""` | Empty derives `<namespace>/odom`; the launch file sets it from `localization_source`. |
+| `goal_frame_id` | `""` | Empty derives `<namespace>/odom`; the launch file sets it to `<namespace>/map` for `gps`, `slam` and `amcl`. |
 | `motion_lock_timeout` | `0.5` s | Publisher runs at 10 Hz. |
 | `lidar_health_topic` | `diagnostics` | Raw `DiagnosticArray` topic, not `diagnostics_agg`. |
 | `lidar_status_name` | `rover_rs16_lidar_node: Lidar status` | Exact `DiagnosticStatus` name to match. |

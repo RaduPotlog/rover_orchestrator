@@ -469,19 +469,42 @@
 
   ### LOCALIZATION ###
 
+  # Only used when bringup.launch.py is started with localization_source:=amcl. AMCL then
+  # owns <namespace>/map -> <namespace>/odom, so ROVER_USE_GPS must be off (or
+  # ROVER_GPS_PUBLISH_MAP_TF=false) and slam_toolbox must not run: all three publish that
+  # same transform, and two owners fight rather than error.
   amcl:
     ros__parameters:
       use_sim_time: false
 
       global_frame_id: <namespace>/map
       odom_frame_id: <namespace>/odom
+      # base_link, not the EKF's base_footprint child: it matches every costmap's
+      # robot_base_frame and bt_navigator's. The URDF joint between them is a pure +Z
+      # offset with no rotation (rover_description base.urdf.xacro), so the planar
+      # odom -> base delta AMCL integrates -- and the map -> odom it emits -- are identical
+      # either way.
       base_frame_id: <namespace>/base_link
 
       scan_topic: <scan_topic>
+      # Relative on purpose: resolves to /<namespace>/map inside the pushed namespace, the
+      # same latched topic global_costmap's static_layer subscribes to.
+      map_topic: map
+      # The map is static and never republished, so skip rebuilding the likelihood field.
+      first_map_only: true
 
       robot_model_type: nav2_amcl::DifferentialMotionModel
 
+      # Seeded from a known pose rather than scattering particles over the map:
+      # reinitialize_global_localization converges slowly and, in corridors and repeated
+      # bays, can settle into the wrong self-similar hypothesis. initial_pose is overridden
+      # per site by localization.launch.py from ROVER_AMCL_INITIAL_POSE_{X,Y,YAW}; the 0,0,0
+      # below is correct only when the map origin is where the rover parks.
       set_initial_pose: true
+      # Every activation re-seeds from initial_pose instead of the last estimate, so startup
+      # is deterministic: the rover comes up believing it is where it physically is. This
+      # makes save_pose_rate pointless -- AMCL would write its estimate back into its own
+      # parameters only for this to discard it -- so the writeback is disabled below.
       always_reset_initial_pose: true
       initial_pose:
         x: 0.0
@@ -521,11 +544,18 @@
       pf_err: 0.05
       pf_z: 0.99
 
+      # Augmented-MCL random-particle injection, disabled. With a known startup prior it
+      # mostly hurts: in feature-poor corridors it degrades an already-converged estimate.
+      # 0.001 / 0.1 is the standard pair if automatic kidnap recovery is ever wanted; the
+      # manual path is amcl/set_initial_pose (see rover_navigation/README.md).
       recovery_alpha_fast: 0.0
       recovery_alpha_slow: 0.0
 
       resample_interval: 1
-      save_pose_rate: 0.5
+      # Disabled: see always_reset_initial_pose. Nothing reads what this would write --
+      # AMCL only set_parameters() on itself, it never persists to disk, so a restart
+      # always comes back from the YAML value regardless.
+      save_pose_rate: -1.0
       sigma_hit: 0.2
 
       update_min_a: 0.1

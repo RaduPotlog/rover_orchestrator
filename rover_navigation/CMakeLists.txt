@@ -89,6 +89,13 @@ install(DIRECTORY include/ DESTINATION include)
 
 if(BUILD_TESTING)
     find_package(ament_cmake_gtest REQUIRED)
+    find_package(ament_cmake_pytest REQUIRED)
+
+    # Introspects the launch files without spawning anything, so it needs no ROS graph and
+    # no nav2 binaries. Its main job is asserting that localization_source's three
+    # declarations stay in sync -- they must agree by hand, and a divergence fails in the
+    # field rather than at startup.
+    ament_add_pytest_test(test_localization_launch test/launch/test_localization_launch.py)
 
     ament_add_gtest(test_map_autosave_policy test/unit/test_map_autosave_policy.cpp)
     target_link_libraries(test_map_autosave_policy ${PROJECT_NAME}_core)

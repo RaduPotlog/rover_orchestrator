@@ -17,7 +17,12 @@
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, GroupAction, SetEnvironmentVariable
+from launch.actions import (
+    DeclareLaunchArgument,
+    GroupAction,
+    OpaqueFunction,
+    SetEnvironmentVariable,
+)
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import LoadComposableNodes, Node
@@ -37,8 +42,10 @@ def generate_launch_description():
     container_name_full = (namespace, "/", container_name)
     use_respawn = LaunchConfiguration("use_respawn")
     log_level = LaunchConfiguration("log_level")
-
-    lifecycle_nodes = ["map_server"]
+    localization_source = LaunchConfiguration("localization_source")
+    initial_pose_x = LaunchConfiguration("initial_pose_x")
+    initial_pose_y = LaunchConfiguration("initial_pose_y")
+    initial_pose_yaw = LaunchConfiguration("initial_pose_yaw")
 
     # Create our own temporary YAML files that include substitutions
     param_substitutions = {"use_sim_time": use_sim_time, "yaml_filename": map_yaml_file}
@@ -96,9 +103,70 @@ def generate_launch_description():
         "log_level", default_value="info", description="log level"
     )
 
-    load_nodes = GroupAction(
-        condition=IfCondition(PythonExpression(["not ", use_composition])),
-        actions=[
+    # Kept identical to bringup.launch.py's and rover_mission_manager's lists on purpose --
+    # test/launch/test_localization_launch.py asserts all three match, because a silent
+    # divergence between them is a field bug rather than a startup error. 'slam' is never
+    # routed here (bringup includes slam_launch.py instead) but stays in the list for that.
+    declare_localization_source_cmd = DeclareLaunchArgument(
+        "localization_source",
+        default_value="odom",
+        description=(
+            "Only 'amcl' starts nav2_amcl; every other value brings up map_server alone. "
+            "See bringup.launch.py for what each value means."
+        ),
+        choices=["odom", "gps", "slam", "amcl"],
+    )
+
+    declare_initial_pose_x_cmd = DeclareLaunchArgument(
+        "initial_pose_x",
+        default_value="0.0",
+        description="X of AMCL's startup pose in <namespace>/map. Only used with amcl.",
+    )
+
+    declare_initial_pose_y_cmd = DeclareLaunchArgument(
+        "initial_pose_y",
+        default_value="0.0",
+        description="Y of AMCL's startup pose in <namespace>/map. Only used with amcl.",
+    )
+
+    declare_initial_pose_yaw_cmd = DeclareLaunchArgument(
+        "initial_pose_yaw",
+        default_value="0.0",
+        description="Yaw (rad) of AMCL's startup pose. Only used with amcl.",
+    )
+
+    def localization_setup(context, *args, **kwargs):
+        """Build the localization nodes once localization_source is known.
+
+        This is an OpaqueFunction rather than plain declarative actions because
+        lifecycle_manager's `node_names` is a string_array whose *element count* has to
+        vary with the mode, and no substitution can do that: PythonExpression always
+        evaluates to a str, which the parameter declaration rejects, and ParameterValue
+        builds one array element per substitution, so it cannot add or drop one.
+        ComposableNode has no `condition` argument either. Resolving the configuration
+        here turns both problems back into ordinary Python.
+        """
+        amcl_enabled = context.perform_substitution(localization_source) == "amcl"
+
+        # map_server first: lifecycle_manager transitions in list order, and AMCL blocks
+        # waiting for the map, so activating the publisher first avoids a startup stall.
+        lifecycle_nodes = ["map_server"] + (["amcl"] if amcl_enabled else [])
+
+        # Dotted keys override the nested initial_pose block in rover_nav_params.yaml.
+        # Resolved to floats here because AMCL declares them as doubles and a launch
+        # substitution would hand it strings.
+        amcl_overrides = {
+            "initial_pose.x": float(context.perform_substitution(initial_pose_x)),
+            "initial_pose.y": float(context.perform_substitution(initial_pose_y)),
+            "initial_pose.yaw": float(context.perform_substitution(initial_pose_yaw)),
+        }
+
+        # AMCL runs only with localization_source:=amcl, and is then the sole owner of
+        # <namespace>/map -> <namespace>/odom. rover_ekf_global_node (rover_localization)
+        # publishes that same transform when ROVER_GPS_PUBLISH_MAP_TF=true, and
+        # slam_toolbox when localization_source:=slam. Exactly one of the three may run --
+        # two owners do not error, they fight, and the pose visibly jitters between them.
+        plain_nodes = [
             Node(
                 package="nav2_map_server",
                 executable="map_server",
@@ -109,21 +177,21 @@ def generate_launch_description():
                 parameters=[configured_params],
                 arguments=["--ros-args", "--log-level", log_level],
             ),
-            # AMCL is intentionally disabled. It publishes <namespace>/map -> <namespace>/odom,
-            # and so does rover_ekf_global_node in rover_localization whenever GPS fusion is on
-            # (ROVER_USE_GPS; see rover_localization/launch/rover_localization.launch.py,
-            # which carries the same warning). Only one process may own that transform. If you
-            # re-enable AMCL, turn GPS fusion off and launch with localization_source:=odom.
-            # Node(
-            #     package="nav2_amcl",
-            #     executable="amcl",
-            #     name="amcl",
-            #     output="screen",
-            #     respawn=use_respawn,
-            #     respawn_delay=2.0,
-            #     parameters=[configured_params],
-            #     arguments=["--ros-args", "--log-level", log_level],
-            # ),
+        ]
+        if amcl_enabled:
+            plain_nodes.append(
+                Node(
+                    package="nav2_amcl",
+                    executable="amcl",
+                    name="amcl",
+                    output="screen",
+                    respawn=use_respawn,
+                    respawn_delay=2.0,
+                    parameters=[configured_params, amcl_overrides],
+                    arguments=["--ros-args", "--log-level", log_level],
+                )
+            )
+        plain_nodes.append(
             Node(
                 package="nav2_lifecycle_manager",
                 executable="lifecycle_manager",
@@ -135,31 +203,27 @@ def generate_launch_description():
                     {"autostart": autostart},
                     {"node_names": lifecycle_nodes},
                 ],
-            ),
-        ],
-    )
+            )
+        )
 
-    load_composable_nodes = LoadComposableNodes(
-        condition=IfCondition(use_composition),
-        target_container=container_name_full,
-        composable_node_descriptions=[
+        composable_nodes = [
             ComposableNode(
                 package="nav2_map_server",
                 plugin="nav2_map_server::MapServer",
                 name="map_server",
                 parameters=[configured_params],
             ),
-            # AMCL is intentionally disabled. It publishes <namespace>/map -> <namespace>/odom,
-            # and so does rover_ekf_global_node in rover_localization whenever GPS fusion is on
-            # (ROVER_USE_GPS; see rover_localization/launch/rover_localization.launch.py,
-            # which carries the same warning). Only one process may own that transform. If you
-            # re-enable AMCL, turn GPS fusion off and launch with localization_source:=odom.
-            # ComposableNode(
-            #     package="nav2_amcl",
-            #     plugin="nav2_amcl::AmclNode",
-            #     name="amcl",
-            #     parameters=[configured_params],
-            # ),
+        ]
+        if amcl_enabled:
+            composable_nodes.append(
+                ComposableNode(
+                    package="nav2_amcl",
+                    plugin="nav2_amcl::AmclNode",
+                    name="amcl",
+                    parameters=[configured_params, amcl_overrides],
+                )
+            )
+        composable_nodes.append(
             ComposableNode(
                 package="nav2_lifecycle_manager",
                 plugin="nav2_lifecycle_manager::LifecycleManager",
@@ -171,9 +235,20 @@ def generate_launch_description():
                         "node_names": lifecycle_nodes,
                     }
                 ],
+            )
+        )
+
+        return [
+            GroupAction(
+                condition=IfCondition(PythonExpression(["not ", use_composition])),
+                actions=plain_nodes,
             ),
-        ],
-    )
+            LoadComposableNodes(
+                condition=IfCondition(use_composition),
+                target_container=container_name_full,
+                composable_node_descriptions=composable_nodes,
+            ),
+        ]
 
     # Create the launch description and populate
     ld = LaunchDescription()
@@ -191,9 +266,12 @@ def generate_launch_description():
     ld.add_action(declare_container_name_cmd)
     ld.add_action(declare_use_respawn_cmd)
     ld.add_action(declare_log_level_cmd)
+    ld.add_action(declare_localization_source_cmd)
+    ld.add_action(declare_initial_pose_x_cmd)
+    ld.add_action(declare_initial_pose_y_cmd)
+    ld.add_action(declare_initial_pose_yaw_cmd)
 
     # Add the actions to launch all of the localiztion nodes
-    ld.add_action(load_nodes)
-    ld.add_action(load_composable_nodes)
+    ld.add_action(OpaqueFunction(function=localization_setup))
 
     return ld
