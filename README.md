@@ -24,6 +24,9 @@ git clone -b master https://github.com/RaduPotlog/rover_orchestrator.git src/rov
 ### Setup environment variables
 
 ```bash
+# Every $ROS_DISTRO below is expanded before ROS is sourced, so set it explicitly.
+export ROS_DISTRO=lyrical
+
 # The namespace the rover runs under. Both computers must agree, otherwise Nav 2 publishes
 # /nav_cmd_vel_stamped while the rover's mux listens on /rover/nav_cmd_vel_stamped.
 export ROVER_NAMESPACE=rover
@@ -97,3 +100,14 @@ colcon test-result --all
 
 Launch arguments, parameters, localization sources and troubleshooting are documented in the
 package READMEs linked above.
+
+## Related repositories
+
+A complete rover is three repositories, one per container:
+
+- [`rover_ros`](https://github.com/RaduPotlog/rover_ros) - the platform
+  (`rover-a1-platform`).
+- [`rover_sensors`](https://github.com/RaduPotlog/rover_sensors) - the sensor payload,
+  GNSS and lidar drivers (`rover-a1-sensors`).
+- [`rover_orchestrator`](https://github.com/RaduPotlog/rover_orchestrator) - this one, the
+  autonomy stack (`rover-a1-orchestrator`).
