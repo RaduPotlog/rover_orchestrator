@@ -39,9 +39,24 @@ Follow `localization_state` for the outcome.
 
 ## Behaviour
 
-- **Startup.** The manager resumes on the last loaded map (`/maps/active`), seeding AMCL at the
-  last recorded pose (`/maps/<name>/last_pose.yaml`, written every 5 s while localized). With no
-  map yet, it starts mapping.
+- **Startup.** The manager resumes on the last loaded map (`/maps/active`). If that map has a
+  remembered pose (`/maps/<name>/last_pose.yaml`), AMCL starts there with a **wider spread**:
+  - σ 1.5 m / 45° (`restore_sigma_xy` / `restore_sigma_yaw`) instead of AMCL's built-in
+    ~0.5 m / 15°;
+  - so it still converges if the rover was nudged or the pose is slightly stale;
+  - the manager publishes this `initialpose` once AMCL is up, meaning it has a subscriber and the
+    map → base_link TF resolves;
+  - with no remembered pose it starts mapping, or uses the map origin.
+- **When the pose is saved:**
+  - the moment the rover comes to rest, from `odometry/wheels`: below 0.03 m/s and 0.05 rad/s for
+    0.5 s after moving;
+  - on shutdown;
+  - before switching to another map or to mapping;
+  - every 5 s while localized, as a backstop.
+- **Find me.** The drive interface's **Find me** button calls AMCL's
+  `reinitialize_global_localization` directly (particles over the whole map), then
+  `request_nomotion_update` three times. It's a last resort: in repetitive areas AMCL can settle on
+  a look-alike spot, so use Set pose when you know where the rover is.
 - **Save, then load.** Loading a map right after saving it from the running SLAM session seeds
   AMCL with SLAM's current pose, so the rover stays localized.
 - **Places.** Places live per map in `/maps/<name>/places.yaml`. Names are unique per map
@@ -71,7 +86,10 @@ imports ROS or an outer layer.
 | `localization_params_file` | *(required)* | bringup's namespaced `rover_nav_params.yaml` |
 | `maps_dir` | `/maps` | The `rover-maps` volume in rover-a1-orchestrator |
 | `save_map_timeout` | `5.0` | s, map_saver |
-| `pose_record_period` | `5.0` | s |
+| `pose_record_period` | `5.0` | s, backstop for the stop-triggered save |
+| `motion_topic` | `odometry/wheels` | Speed source for detecting a stop |
+| `stop_linear_threshold` / `stop_angular_threshold` / `stop_hold_time` | `0.03` / `0.05` / `0.5` | m/s, rad/s, s |
+| `restore_sigma_xy` / `restore_sigma_yaw` | `1.5` / `0.785` | m / rad, AMCL spread around a remembered pose |
 | `auto_start` | `true` | Resume / start mapping on startup |
 | `launch_package`, `launch_file` | `rover_navigation`, `indoor_localization.launch.py` | |
 

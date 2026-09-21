@@ -70,6 +70,14 @@ class LocalizationController(ABC):
     def stop(self) -> None: ...
 
     @abstractmethod
+    def widen_initial_estimate(self, pose: Pose2D, sigma_xy: float, sigma_yaw: float) -> None:
+        """Re-seed the running AMCL at `pose` with a wider spread (standard deviations).
+
+        Used when the seed is only a remembered pose, so AMCL can still converge if the rover
+        was moved a little while it was off. Blocks until AMCL is up or gives up.
+        """
+
+    @abstractmethod
     def running(self) -> bool:
         """False once the sub-stack exited on its own (crash)."""
 

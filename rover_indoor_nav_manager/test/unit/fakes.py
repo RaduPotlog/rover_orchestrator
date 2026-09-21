@@ -60,6 +60,8 @@ class FakeLocalization(LocalizationController):
         self.calls = []
         self.alive = False
         self.fail_next = False
+        self.widened = []
+        self.widen_error = None
 
     def start_mapping(self):
         if self.fail_next:
@@ -75,6 +77,11 @@ class FakeLocalization(LocalizationController):
     def stop(self):
         self.calls.append(('stop',))
         self.alive = False
+
+    def widen_initial_estimate(self, pose, sigma_xy, sigma_yaw):
+        if self.widen_error:
+            raise RuntimeError(self.widen_error)
+        self.widened.append((pose, sigma_xy, sigma_yaw))
 
     def running(self):
         return self.alive

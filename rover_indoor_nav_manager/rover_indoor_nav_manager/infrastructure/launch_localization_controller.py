@@ -23,7 +23,7 @@ class LaunchLocalizationController:
     def __init__(self, logger, namespace: str, params_file: str, use_sim_time: bool,
                  log_level: str = 'info', launch_package: str = 'rover_navigation',
                  launch_file: str = 'indoor_localization.launch.py',
-                 stop_timeout: float = 15.0):
+                 stop_timeout: float = 15.0, initial_pose_seeder=None):
         self._logger = logger
         self._namespace = namespace
         self._params_file = params_file
@@ -33,6 +33,8 @@ class LaunchLocalizationController:
         self._stop_timeout = stop_timeout
         self._process: Optional[subprocess.Popen] = None
         self._lock = threading.Lock()
+        # Publishes AMCL's initialpose (RosInitialPoseSeeder); None in process-only tests.
+        self._seeder = initial_pose_seeder
 
     def command(self, mode: str, map_yaml: str = '', pose: Optional[Pose2D] = None) -> List[str]:
         cmd = ['ros2', 'launch', *self._launch,
@@ -52,6 +54,11 @@ class LaunchLocalizationController:
 
     def start_localization(self, map_yaml: str, initial_pose: Pose2D) -> None:
         self._start(self.command('localization', map_yaml, initial_pose))
+
+    def widen_initial_estimate(self, pose: Pose2D, sigma_xy: float, sigma_yaw: float) -> None:
+        if self._seeder is None:
+            raise RuntimeError('no initial pose seeder configured')
+        self._seeder.seed(pose, sigma_xy, sigma_yaw)
 
     def running(self) -> bool:
         with self._lock:

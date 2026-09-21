@@ -5,16 +5,28 @@
 
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 
+import math
+import threading
+
+from nav_msgs.msg import Odometry
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from rover_msgs.srv import DeleteMap, DeletePlace, LoadMap, SaveMap, SavePlace
 from std_srvs.srv import Trigger
 
 from ..application.indoor_nav_service import IndoorNavService
 from ..domain.model import DomainError, Pose2D
+from ..domain.motion import StopThresholds
 from .file_map_repository import FileMapRepository
 from .launch_localization_controller import LaunchLocalizationController
-from .ros_adapters import place_to_msg, RosMapSaver, RosObserver, TfPoseSource
+from .ros_adapters import (
+    place_to_msg,
+    RosInitialPoseSeeder,
+    RosMapSaver,
+    RosObserver,
+    TfPoseSource,
+)
 
 # How long a service call waits for a switch before answering "in progress". The drive UI
 # follows localization_state for the outcome, so it does not need to block for seconds.
@@ -38,6 +50,16 @@ class IndoorNavNode(Node):
         self.declare_parameter('save_map_timeout', 5.0)
         self.declare_parameter('pose_record_period', 5.0)
         self.declare_parameter('auto_start', True)
+        # Save the pose the moment the rover comes to rest (plus pose_record_period as a backstop).
+        # The drive controller's wheel odometry: always there when the rover can drive (the EKF's
+        # odometry/filtered is not, e.g. in the Gazebo sim), and wheel speed is what "stopped" means.
+        self.declare_parameter('motion_topic', 'odometry/wheels')
+        self.declare_parameter('stop_linear_threshold', 0.03)
+        self.declare_parameter('stop_angular_threshold', 0.05)
+        self.declare_parameter('stop_hold_time', 0.5)
+        # Spread AMCL gets around a remembered pose after a restart (standard deviations).
+        self.declare_parameter('restore_sigma_xy', 1.5)
+        self.declare_parameter('restore_sigma_yaw', math.pi / 4)
 
         params_file = self.get_parameter('localization_params_file').value
         if not params_file:
@@ -50,19 +72,37 @@ class IndoorNavNode(Node):
         io_group = ReentrantCallbackGroup()
 
         self._worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix='indoor_nav')
+        pose_source = TfPoseSource(
+            self, ns_frame(namespace, 'map'), ns_frame(namespace, 'base_link'))
+        seeder = RosInitialPoseSeeder(self, ns_frame(namespace, 'map'), pose_source)
         self._controller = LaunchLocalizationController(
             self.get_logger(), namespace.strip('/'), params_file, use_sim_time,
             log_level=self.get_parameter('log_level').value,
             launch_package=self.get_parameter('launch_package').value,
-            launch_file=self.get_parameter('launch_file').value)
+            launch_file=self.get_parameter('launch_file').value,
+            initial_pose_seeder=seeder)
         self.service = IndoorNavService(
             maps=FileMapRepository(self.get_parameter('maps_dir').value),
             localization=self._controller,
             saver=RosMapSaver(self, 'map_saver/save_map',
                               self.get_parameter('save_map_timeout').value, io_group),
-            robot=TfPoseSource(self, ns_frame(namespace, 'map'),
-                               ns_frame(namespace, 'base_link')),
-            observer=RosObserver(self))
+            robot=pose_source,
+            observer=RosObserver(self),
+            stop_thresholds=StopThresholds(
+                linear=self.get_parameter('stop_linear_threshold').value,
+                angular=self.get_parameter('stop_angular_threshold').value,
+                hold_time=self.get_parameter('stop_hold_time').value),
+            restore_sigma_xy=self.get_parameter('restore_sigma_xy').value,
+            restore_sigma_yaw=self.get_parameter('restore_sigma_yaw').value)
+
+        # Odometry arrives at 50-100 Hz; hand the worker only the newest sample, at most one
+        # queued at a time, so a long switch never builds a backlog of stale speeds.
+        self._motion_lock = threading.Lock()
+        self._motion_sample = None
+        self._motion_queued = False
+        self.create_subscription(
+            Odometry, self.get_parameter('motion_topic').value, self._on_odometry,
+            qos_profile_sensor_data, callback_group=io_group)
 
         g = self._services_group
         self.create_service(Trigger, 'start_mapping', self._start_mapping, callback_group=g)
@@ -80,6 +120,24 @@ class IndoorNavNode(Node):
 
         if self.get_parameter('auto_start').value:
             self._worker.submit(self._startup)
+
+    def _on_odometry(self, msg: Odometry):
+        twist = msg.twist.twist
+        sample = (math.hypot(twist.linear.x, twist.linear.y), twist.angular.z,
+                  self.get_clock().now().nanoseconds * 1e-9)
+        with self._motion_lock:
+            self._motion_sample = sample
+            if self._motion_queued:
+                return
+            self._motion_queued = True
+        self._worker.submit(self._drain_motion)
+
+    def _drain_motion(self):
+        with self._motion_lock:
+            sample, self._motion_sample = self._motion_sample, None
+            self._motion_queued = False
+        if sample is not None:
+            self.service.on_motion(*sample)
 
     def _startup(self):
         try:

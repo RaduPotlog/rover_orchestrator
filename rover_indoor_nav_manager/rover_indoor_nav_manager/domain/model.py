@@ -73,6 +73,15 @@ class MapRecord:
     saved_unix: float = 0.0
 
 
+class SeedSource(enum.Enum):
+    """Where AMCL's starting pose came from - decides how much to trust it."""
+
+    SLAM = 'slam'            # hand-off from the SLAM session just saved: exact
+    EXPLICIT = 'explicit'    # the operator gave the pose (LoadMap with set_initial_pose)
+    LAST_POSE = 'last_pose'  # last_pose.yaml, e.g. after a reboot: may be stale or moved
+    ORIGIN = 'origin'        # nothing known: the map origin
+
+
 class LocalizationMode(enum.Enum):
     UNAVAILABLE = 0
     MAPPING = 1

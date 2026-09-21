@@ -147,3 +147,79 @@ def test_health_check_reports_a_dead_stack_and_start_failure_is_reported():
         svc.start_mapping()
     assert svc.state.mode == LocalizationMode.UNAVAILABLE
     assert 'Could not start SLAM' in svc.state.message
+
+
+def test_stop_saves_the_pose_while_localized():
+    svc, maps, _, _, robot, _ = make(names=['lab'], pose=Pose2D(1, 1, 0))
+    svc.load_map('lab')
+    robot.pose = Pose2D(4, 2, 0.3)
+    svc.on_motion(0.5, 0.0, 0.0)
+    svc.on_motion(0.0, 0.0, 1.0)
+    assert maps.maps['lab']['pose'] != Pose2D(4, 2, 0.3)  # not yet: still for < hold time
+    svc.on_motion(0.0, 0.0, 1.6)
+    assert maps.maps['lab']['pose'] == Pose2D(4, 2, 0.3)
+
+
+def test_stop_does_nothing_while_mapping():
+    svc, maps, _, _, robot, _ = make(names=['lab'], pose=Pose2D(4, 2, 0.3))
+    svc.start_mapping()
+    for v, t in ((0.5, 0.0), (0.0, 1.0), (0.0, 2.0)):
+        svc.on_motion(v, 0.0, t)
+    assert maps.maps['lab']['pose'] is None
+
+
+def test_shutdown_and_switching_away_save_the_pose_first():
+    svc, maps, loc, _, robot, _ = make(names=['lab', 'hall'], pose=Pose2D(1, 1, 0))
+    svc.load_map('lab')
+    robot.pose = Pose2D(7, 7, 1.0)
+    svc.load_map('hall')
+    assert maps.maps['lab']['pose'] == Pose2D(7, 7, 1.0)
+    robot.pose = Pose2D(3, 3, 0.0)
+    svc.shutdown()
+    assert maps.maps['hall']['pose'] == Pose2D(3, 3, 0.0)
+    assert loc.calls[-1] == ('stop',)
+
+
+def test_reloading_the_same_map_starts_from_the_freshest_pose():
+    svc, maps, loc, _, robot, _ = make(names=['lab'], pose=Pose2D(1, 1, 0))
+    svc.load_map('lab')
+    robot.pose = Pose2D(5, 6, 0.2)
+    svc.load_map('lab')
+    assert loc.calls[-1] == ('localization', '/maps/lab/map.yaml', Pose2D(5, 6, 0.2))
+
+
+def test_only_a_remembered_pose_gets_the_wider_spread():
+    # Remembered pose (reboot): widened with the configured sigmas.
+    svc, maps, loc, _, _, _ = make(names=['lab'], active='lab')
+    maps.maps['lab']['pose'] = Pose2D(2, 3, 1)
+    svc.startup()
+    assert loc.widened and loc.widened[-1][0] == Pose2D(2, 3, 1)
+    assert loc.widened[-1][1] == pytest.approx(1.5)
+    assert 'remembered pose' in svc.state.message
+
+    # Explicit pose: the operator knows where the rover is - AMCL's default spread.
+    svc, _, loc, _, _, _ = make(names=['lab'])
+    svc.load_map('lab', Pose2D(1, 1, 0))
+    assert loc.widened == []
+
+    # Nothing remembered: origin fallback, default spread (Set pose / Find me is needed anyway).
+    svc, _, loc, _, _, _ = make(names=['lab'])
+    svc.load_map('lab')
+    assert loc.calls[-1][2] == Pose2D(0, 0, 0)
+    assert loc.widened == []
+
+    # SLAM hand-off: exact, never widened.
+    svc, _, loc, _, robot, _ = make(pose=Pose2D(4, 5, 0.5))
+    svc.start_mapping()
+    svc.save_map('lab')
+    svc.load_map('lab')
+    assert loc.widened == []
+
+
+def test_widen_failure_keeps_localization_and_says_so():
+    svc, maps, loc, _, _, _ = make(names=['lab'], active='lab')
+    maps.maps['lab']['pose'] = Pose2D(2, 3, 1)
+    loc.widen_error = 'AMCL did not come up within 20 s'
+    svc.startup()
+    assert svc.state.mode == LocalizationMode.LOCALIZATION
+    assert 'could not widen' in svc.state.message

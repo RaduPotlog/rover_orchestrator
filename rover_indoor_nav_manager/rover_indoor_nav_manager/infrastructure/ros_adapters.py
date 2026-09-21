@@ -5,8 +5,10 @@
 
 import math
 import threading
+import time
 
 from builtin_interfaces.msg import Time
+from geometry_msgs.msg import PoseWithCovarianceStamped
 from nav2_msgs.srv import SaveMap
 from rclpy.duration import Duration
 from rclpy.node import Node
@@ -128,3 +130,54 @@ class RosObserver(IndoorNavObserver):
         msg = MapList(maps=infos, active_map=active_map)
         msg.header.stamp = self._stamp()
         self._maps_pub.publish(msg)
+
+
+def initial_pose_msg(frame: str, pose: Pose2D, sigma_xy: float, sigma_yaw: float,
+                     stamp=None) -> PoseWithCovarianceStamped:
+    """AMCL initialpose with the given standard deviations on x, y and yaw."""
+    msg = PoseWithCovarianceStamped()
+    msg.header.frame_id = frame
+    if stamp is not None:
+        msg.header.stamp = stamp
+    msg.pose.pose.position.x = pose.x
+    msg.pose.pose.position.y = pose.y
+    msg.pose.pose.orientation.z = math.sin(pose.theta / 2.0)
+    msg.pose.pose.orientation.w = math.cos(pose.theta / 2.0)
+    covariance = [0.0] * 36
+    covariance[0] = sigma_xy ** 2   # x
+    covariance[7] = sigma_xy ** 2   # y
+    covariance[35] = sigma_yaw ** 2  # yaw
+    msg.pose.covariance = covariance
+    return msg
+
+
+class RosInitialPoseSeeder:
+    """Publishes AMCL's initialpose once AMCL is actually up.
+
+    AMCL only takes an initial pose while it is active and has its map, so the seeder waits
+    for a subscriber on `initialpose` and for `map -> base_link` to resolve (AMCL publishing
+    map -> odom) before publishing. Runs on the manager's worker thread, never the executor.
+    """
+
+    def __init__(self, node: Node, frame: str, pose_source: RobotPoseSource,
+                 timeout: float = 20.0):
+        self._node = node
+        self._frame = frame
+        self._pose_source = pose_source
+        self._timeout = timeout
+        self._pub = node.create_publisher(PoseWithCovarianceStamped, 'initialpose', 1)
+
+    def seed(self, pose: Pose2D, sigma_xy: float, sigma_yaw: float) -> None:
+        deadline = time.monotonic() + self._timeout
+        while time.monotonic() < deadline:
+            if (self._pub.get_subscription_count() > 0
+                    and self._pose_source.current_pose() is not None):
+                self._pub.publish(initial_pose_msg(
+                    self._frame, pose, sigma_xy, sigma_yaw,
+                    self._node.get_clock().now().to_msg()))
+                self._node.get_logger().info(
+                    f'AMCL re-seeded at ({pose.x:.2f}, {pose.y:.2f}, {pose.theta:.2f}) with '
+                    f'sigma {sigma_xy:.2f} m / {math.degrees(sigma_yaw):.0f} deg')
+                return
+            time.sleep(0.2)
+        raise RuntimeError(f'AMCL did not come up within {self._timeout:.0f} s')
