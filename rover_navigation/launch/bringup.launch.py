@@ -41,6 +41,7 @@ def generate_launch_description():
     autostart = LaunchConfiguration("autostart")
     log_level = LaunchConfiguration("log_level")
     map = LaunchConfiguration("map")
+    maps_dir = LaunchConfiguration("maps_dir")
     namespace = LaunchConfiguration("namespace")
     observation_topic = LaunchConfiguration("observation_topic")
     observation_topic_type = LaunchConfiguration("observation_topic_type")
@@ -69,6 +70,14 @@ def generate_launch_description():
         "map",
         default_value="empty_world.yaml",
         description="Path to map yaml file to load.",
+    )
+    declare_maps_dir_arg = DeclareLaunchArgument(
+        "maps_dir",
+        default_value="/maps",
+        description=(
+            "localization_source:=indoor only: where rover_indoor_nav_manager keeps its maps, "
+            "places and last pose (the rover-maps volume in rover-a1-orchestrator)."
+        ),
     )
     declare_namespace_arg = DeclareLaunchArgument(
         "namespace",
@@ -357,6 +366,7 @@ def generate_launch_description():
                 parameters=[
                     {
                         "localization_params_file": params_file,
+                        "maps_dir": maps_dir,
                         "use_sim_time": use_sim_time,
                         "log_level": log_level,
                     }
@@ -382,6 +392,7 @@ def generate_launch_description():
             declare_autostart_arg,
             declare_log_level_arg,
             declare_map_arg,
+            declare_maps_dir_arg,
             declare_namespace_arg,
             declare_observation_topic_arg,
             declare_observation_topic_type_arg,
