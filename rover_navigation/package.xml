@@ -23,6 +23,8 @@
   <!-- Nav 2 servers spawned by launch/rover_nav.launch.py, launch/localization.launch.py
        and launch/slam_launch.py, plus the plugins config/rover_nav_params.yaml loads.
        Runtime-only (no headers are compiled against them), hence exec_depend. -->
+  <!-- localization.launch.py, with localization_source:=amcl. -->
+  <exec_depend>nav2_amcl</exec_depend>
   <exec_depend>nav2_behaviors</exec_depend>
   <exec_depend>nav2_bt_navigator</exec_depend>
   <!-- Every launch file imports nav2_common.launch (ReplaceString / RewrittenYaml). -->
@@ -32,8 +34,7 @@
   <exec_depend>nav2_map_server</exec_depend>
   <exec_depend>nav2_mppi_controller</exec_depend>
   <exec_depend>nav2_planner</exec_depend>
-  <!-- planner_server's GridBased plugin. No arm64 binary on lyrical/resolute - built
-       from source, see rover_autonomy/autonomy_deps.repos. -->
+  <!-- planner_server's GridBased plugin. -->
   <exec_depend>nav2_smac_planner</exec_depend>
   <exec_depend>nav2_smoother</exec_depend>
   <exec_depend>nav2_velocity_smoother</exec_depend>
@@ -48,6 +49,7 @@
   <exec_depend>slam_toolbox</exec_depend>
 
   <test_depend>ament_cmake_gtest</test_depend>
+  <test_depend>ament_cmake_pytest</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

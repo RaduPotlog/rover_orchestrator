@@ -89,12 +89,25 @@ install(DIRECTORY include/ DESTINATION include)
 
 if(BUILD_TESTING)
     find_package(ament_cmake_gtest REQUIRED)
+    find_package(ament_cmake_pytest REQUIRED)
+
+    # Introspects the launch files without spawning anything, so it needs no ROS graph and
+    # no nav2 binaries. Its main job is asserting that localization_source's three
+    # declarations stay in sync -- they must agree by hand, and a divergence fails in the
+    # field rather than at startup.
+    ament_add_pytest_test(test_localization_launch test/launch/test_localization_launch.py)
 
     ament_add_gtest(test_map_autosave_policy test/unit/test_map_autosave_policy.cpp)
     target_link_libraries(test_map_autosave_policy ${PROJECT_NAME}_core)
 
     ament_add_gtest(test_autosave_map_use_case test/unit/test_autosave_map_use_case.cpp)
     target_link_libraries(test_autosave_map_use_case ${PROJECT_NAME}_core)
+
+    # The rover's E-Stop condition inside a navigation tree. Its contract is entirely about
+    # fail-safe defaults - no message and a stale message must both read as locked - and those
+    # paths fail in the field as "navigation carried on" rather than as an error.
+    ament_add_gtest(test_is_motion_locked test/unit/test_is_motion_locked.cpp)
+    target_link_libraries(test_is_motion_locked is_motion_locked_bt_node)
 
     # Mechanically enforce that domain/ never grows a ROS or BehaviorTree dependency. Plain
     # CTest add_test (pass/fail via exit code) rather than ament_add_test, since the script

@@ -45,6 +45,9 @@ def generate_launch_description():
     observation_topic = LaunchConfiguration("observation_topic")
     observation_topic_type = LaunchConfiguration("observation_topic_type")
     localization_source = LaunchConfiguration("localization_source")
+    initial_pose_x = LaunchConfiguration("initial_pose_x")
+    initial_pose_y = LaunchConfiguration("initial_pose_y")
+    initial_pose_yaw = LaunchConfiguration("initial_pose_yaw")
     params_file = LaunchConfiguration("params_file")
     robot_model = LaunchConfiguration("robot_model")
     use_composition = LaunchConfiguration("use_composition")
@@ -123,9 +126,33 @@ def generate_launch_description():
             "\t  (rover_localization, started when ROVER_USE_GPS is set). Do NOT publish a\n"
             "\t  static map -> odom and do NOT enable AMCL in this mode.\n"
             "\t- 'slam': the global frame is <namespace>/map, published by slam_toolbox.\n"
-            "\t  Requires ROVER_USE_GPS to be off."
+            "\t  Requires ROVER_USE_GPS to be off.\n"
+            "\t- 'amcl': the global frame is <namespace>/map, published by nav2_amcl,\n"
+            "\t  which matches the lidar scan against the static map from map_server.\n"
+            "\t  Indoor mode. Needs a real map (map:=, NOT the default empty_world.yaml -\n"
+            "\t  every particle scores identically on an empty map and AMCL never\n"
+            "\t  converges), ROVER_USE_LIDAR=true, and ROVER_GPS_PUBLISH_MAP_TF=false."
         ),
-        choices=["odom", "gps", "slam"],
+        choices=["odom", "gps", "slam", "amcl"],
+    )
+    declare_initial_pose_x_arg = DeclareLaunchArgument(
+        "initial_pose_x",
+        default_value=EnvironmentVariable("ROVER_AMCL_INITIAL_POSE_X", default_value="0.0"),
+        description=(
+            "X of the pose AMCL is seeded with at startup, in <namespace>/map. Only used "
+            "with localization_source:=amcl. The default 0.0 is correct only when the map "
+            "origin is the rover's parking spot, i.e. the slam run started there."
+        ),
+    )
+    declare_initial_pose_y_arg = DeclareLaunchArgument(
+        "initial_pose_y",
+        default_value=EnvironmentVariable("ROVER_AMCL_INITIAL_POSE_Y", default_value="0.0"),
+        description="Y of AMCL's startup pose. See initial_pose_x.",
+    )
+    declare_initial_pose_yaw_arg = DeclareLaunchArgument(
+        "initial_pose_yaw",
+        default_value=EnvironmentVariable("ROVER_AMCL_INITIAL_POSE_YAW", default_value="0.0"),
+        description="Yaw (rad) of AMCL's startup pose. See initial_pose_x.",
     )
     declare_use_composition_arg = DeclareLaunchArgument(
         "use_composition",
@@ -163,8 +190,9 @@ def generate_launch_description():
     slam = PythonExpression(["'", localization_source, "' == 'slam'"])
 
     # Nav 2's global frame. In 'odom' mode it stays <namespace>/odom (no map -> odom exists);
-    # otherwise it is <namespace>/map, and the transform comes from whichever single source
-    # localization_source names. The local costmap is a rolling window and always stays on
+    # in 'gps', 'slam' and 'amcl' it is <namespace>/map, and the transform comes from whichever
+    # single source localization_source names -- rover_ekf_global_node, slam_toolbox or
+    # nav2_amcl respectively. The local costmap is a rolling window and always stays on
     # <namespace>/odom -- it is deliberately not tokenised.
     global_frame = PythonExpression(
         [
@@ -279,6 +307,11 @@ def generate_launch_description():
                 launch_arguments={
                     "autostart": autostart,
                     "container_name": "nav2_container",
+                    "initial_pose_x": initial_pose_x,
+                    "initial_pose_y": initial_pose_y,
+                    "initial_pose_yaw": initial_pose_yaw,
+                    "localization_source": localization_source,
+                    "log_level": log_level,
                     "map": map,
                     "namespace": namespace,
                     "params_file": params_file,
@@ -324,6 +357,9 @@ def generate_launch_description():
             declare_observation_topic_type_arg,
             declare_params_file_arg,
             declare_localization_source_arg,
+            declare_initial_pose_x_arg,
+            declare_initial_pose_y_arg,
+            declare_initial_pose_yaw_arg,
             declare_robot_model_arg,
             declare_use_composition_arg,
             declare_use_respawn_arg,

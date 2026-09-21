@@ -62,8 +62,8 @@ When navigation runs on a different machine than the rover, both must share the 
   container and includes the launch files below.
 - `rover_nav.launch.py` - the Nav 2 navigation servers plus
   `lifecycle_manager_navigation`.
-- `localization.launch.py` - `map_server` plus `lifecycle_manager_localization`. Used for
-  `localization_source` `odom` and `gps`.
+- `localization.launch.py` - `map_server` plus `lifecycle_manager_localization`, and
+  `nav2_amcl` when `localization_source:=amcl`. Used for `odom`, `gps` and `amcl`.
 - `slam_launch.py` - `slam_toolbox` plus `map_saver` and `lifecycle_manager_slam`. Used for
   `localization_source:=slam`, and the only mode in which `map_autosaver_node` runs.
 
@@ -122,7 +122,8 @@ Arguments of `bringup.launch.py` (`ros2 launch rover_navigation bringup.launch.p
 | `observation_topic_type` | `laserscan` | `laserscan` consumes `rover_rs16_lidar`'s flattened scan directly; `pointcloud` runs `pointcloud_crop_box` over the raw RS16 cloud first. |
 | `params_file` | `<share>/rover_navigation/config/rover_nav_params.yaml` | Parameter file for all Nav 2 nodes. |
 | `robot_model` | `$ROBOT_MODEL_NAME`, else `rover_a1` | Robot model; selects the footprint bounding box. |
-| `localization_source` | `odom` | Where the Nav 2 global frame comes from: `odom`, `gps` or `slam`. Replaces the old `slam` boolean. See below. |
+| `localization_source` | `odom` | Where the Nav 2 global frame comes from: `odom`, `gps`, `slam` or `amcl`. Replaces the old `slam` boolean. See below. |
+| `initial_pose_x` / `_y` / `_yaw` | `$ROVER_AMCL_INITIAL_POSE_{X,Y,YAW}`, else `0.0` | Pose AMCL is seeded with at startup, in `<namespace>/map`. Only used with `localization_source:=amcl`. |
 | `use_composition` | `True` | Load all servers into one component container. |
 | `use_respawn` | `False` | Respawn a crashed node. Only when composition is disabled. |
 | `use_sim_time` | `False` | Use the Gazebo clock. |
@@ -192,8 +193,19 @@ exclusive. This argument replaces the old `slam` boolean.
 | Mode | Nav 2 global frame | `map -> odom` published by | Use when |
 |---|---|---|---|
 | `odom` (default) | `<namespace>/odom` | nobody | No GPS, no SLAM. Navigation is odometry-relative and **drifts**; the global costmap's static layer will not line up with the map. |
-| `gps` | `<namespace>/map` | `rover_ekf_global_node` (`rover_localization`) | `ROVER_USE_GPS` is set on the rover. |
+| `gps` | `<namespace>/map` | `rover_ekf_global_node` (`rover_localization`) | `ROVER_USE_GPS` is set on the rover. Outdoors only — see the warning below. |
 | `slam` | `<namespace>/map` | `slam_toolbox` | Mapping a new area. Requires `ROVER_USE_GPS` **off**. |
+| `amcl` | `<namespace>/map` | `nav2_amcl` | **Indoors.** Matches the lidar scan against a static map. Needs a real map (build one in `slam` mode first), `ROVER_USE_LIDAR=true`, and `ROVER_GPS_PUBLISH_MAP_TF=false`. |
+
+> **Do not use `gps` mode indoors.** It does not fail loudly, it fails silently.
+> `rover_gps_heading_node` needs roughly 9 m of straight driving with a horizontal
+> std under 5 m before it emits a heading, which never happens under a roof, so
+> `navsat_transform` never completes its transform and `odometry/gps` is never
+> published. The global EKF keeps dead-reckoning and still publishes `map -> odom`
+> at 50 Hz, so the rover is effectively in `odom` mode while the config claims `gps`
+> — and near windows and doorways it is worse, because `wait_for_datum: false` pins
+> the map origin to the first (multipath) fix and that fix is then fused as absolute
+> X/Y with no quality gate. Use `amcl` or `slam` indoors.
 
 ```bash
 # GPS-backed navigation, global frame rover/map
@@ -212,6 +224,88 @@ In `gps` mode the map's origin and the EKF datum (`rover/localization/datum`) mu
 the same place, or the static layer will be offset from the world by that difference. This is
 a configuration trap, not a bug — the transform will look perfectly healthy.
 
+## Indoor navigation with AMCL
+
+Two phases: build a map once with SLAM, then navigate against it with AMCL. The mapping
+side is the existing `slam` mode and `map_autosaver_node` — nothing new.
+
+### 1. Map the space (once per site)
+
+```bash
+# ROVER_LOCALIZATION_SOURCE=slam, ROVER_USE_GPS=false, ROVER_USE_LIDAR=true
+ros2 launch rover_navigation bringup.launch.py \
+  use_sim_time:=False localization_source:=slam \
+  map:=$(ros2 pkg prefix rover_navigation)/share/rover_navigation/map/empty_world.yaml
+```
+
+**Park the rover where it will normally start before the stack comes up.** slam_toolbox
+puts the map origin at the start pose, which is what makes the default
+`initial_pose 0,0,0` correct later. Then teleop slowly through the whole area, closing at
+least one loop. `map_autosaver_node` calls `map_saver` every 15 s and writes
+`/maps/map.yaml` + `/maps/map.pgm`.
+
+```bash
+ros2 topic echo /rover/map --field info --once    # check it looks sane
+ls -l /maps/                                      # over SSH, port 2222
+scp -P 2222 root@<device>:/maps/map.* .           # back it up off the device
+```
+
+### 2. Navigate against it
+
+```bash
+ros2 launch rover_navigation bringup.launch.py \
+  use_sim_time:=False localization_source:=amcl map:=/maps/map.yaml
+```
+
+On the rover set `ROVER_LOCALIZATION_SOURCE=amcl` and `ROVER_NAV_MAP=/maps/map.yaml`;
+changing a balenaCloud variable restarts the container, which re-reads them.
+
+### Initial pose
+
+AMCL is **seeded** from a known pose rather than scattering particles over the map:
+global relocalization converges slowly and, in corridors and repeated bays, can settle
+into the wrong self-similar hypothesis. If the rover does not start at the map origin,
+find its pose once while still in `slam` mode, parked where it will start:
+
+```bash
+ros2 run tf2_ros tf2_echo rover/map rover/base_link
+```
+
+and put translation x/y and yaw into `ROVER_AMCL_INITIAL_POSE_{X,Y,YAW}`.
+
+### If AMCL diverges
+
+In order of preference:
+
+1. **Re-seed from a known pose** — drive back to the parking spot and publish it:
+   ```bash
+   ros2 topic pub --once /rover/initialpose geometry_msgs/msg/PoseWithCovarianceStamped \
+     "{header: {frame_id: rover/map}, pose: {pose: {position: {x: 0.0, y: 0.0}, orientation: {w: 1.0}}}}"
+   ```
+   AMCL only updates on motion (`update_min_d: 0.15`, `update_min_a: 0.1`), so a pose
+   seeded while parked will not refine until the rover moves.
+2. **RViz *2D Pose Estimate*** from a workstation — the same topic, graphically. The
+   orchestrator image is `ros-base` with no GUI, so this needs another machine on the
+   Zenoh graph.
+3. **Global relocalization, last resort** — `ros2 service call
+   /rover/reinitialize_global_localization std_srvs/srv/Empty {}`, then teleop at least
+   5 m through a geometrically distinctive area (a doorway or corner, not a plain
+   corridor) and watch `/rover/particle_cloud` collapse.
+
+### Checking it converged
+
+```bash
+ros2 lifecycle get /rover/amcl                            # expect: active [3]
+ros2 topic echo /rover/amcl_pose --field pose.covariance  # [0] and [7] should fall below
+                                                          # ~0.05 after driving 5 m
+ros2 run tf2_ros tf2_monitor rover/map rover/odom         # exactly one broadcaster: amcl
+ros2 run tf2_ros tf2_echo rover/map rover/odom            # small at the start pose, and
+                                                          # bounded as odometry drifts
+```
+
+An unbounded `map -> odom` ramp means AMCL is not correcting at all — check the map, the
+scan topic and the lidar before touching any tuning parameter.
+
 ## Sending a Goal
 
 ```bash
@@ -224,7 +318,7 @@ ros2 topic echo /rover/nav_cmd_vel_stamped
 ```
 
 The goal `frame_id` must match the mode: **`rover/odom`** with `localization_source:=odom`
-(as above), **`rover/map`** with `gps` or `slam`.
+(as above), **`rover/map`** with `gps`, `slam` or `amcl`.
 
 ## Known Limitations and Troubleshooting
 
@@ -236,8 +330,11 @@ The goal `frame_id` must match the mode: **`rover/odom`** with `localization_sou
   second owner of that transform and the two would fight. Use `localization_source:=gps`
   instead — see [Localization source](#localization-source).
 - **Only one process may own `map -> odom`.** The three producers are mutually exclusive:
-  `rover_ekf_global_node` (GPS), `slam_toolbox` (SLAM) and AMCL (disabled, and commented in
-  `localization.launch.py` with the reason). Pick one with `localization_source`.
+  `rover_ekf_global_node` (`gps`), `slam_toolbox` (`slam`) and `nav2_amcl` (`amcl`). Pick one
+  with `localization_source`. Two owners do not error -- they fight, and the symptom is a pose
+  that visibly jitters between two hypotheses at the rate difference of the two publishers.
+  `ros2 run tf2_ros tf2_monitor rover/map rover/odom` names every broadcaster; expect exactly
+  one.
 - **`observation_topic_type` picks between two working pipelines.** `laserscan` (the
   default) feeds the `stvl_layer` from `rover_rs16_lidar`'s `<namespace>/scan` directly. `pointcloud`
   runs `pointcloud_crop_box` over the raw `<namespace>/rslidar_points`, publishing
@@ -254,6 +351,16 @@ The goal `frame_id` must match the mode: **`rover/odom`** with `localization_sou
   scan ring lands near z=0 — the upstream STVL default of `min_z: 0.1` silently discarded
   every single point. It is `-0.5` here. Raise `ROVER_LIDAR_LOCALIZATION_Z` to the real mount
   height rather than re-tuning `min_z` blindly.
+- **AMCL never converges / the pose does not track.** In order of likelihood: the map is
+  `empty_world.yaml` (every particle scores identically on 50 x 50 m of free space -- build a
+  real one in `slam` mode); the lidar is off (`ROVER_USE_LIDAR=true`, check
+  `ros2 topic hz /<ns>/scan`); two processes own `map -> odom` (see above); the rover did not
+  start where `initial_pose` says it did. `ROVER_LIDAR_LOCALIZATION_Z` matters here too -- it
+  defaults to `0.0`, and the same mount height that breaks STVL's `min_z` also skews the scan
+  geometry AMCL matches against. Set it before retuning anything.
+- **Along-corridor drift in `amcl` mode.** Long featureless corridors give AMCL no scan
+  evidence along their axis. `max_beams: 60` over a 20 m scan is on the low side for that;
+  raise it to 90-120 before touching `sigma_hit` or `z_rand`.
 - **`consider_footprint: true` costs CPU.** MPPI's footprint sweep over 800x40 trajectory
   points is the dominant cost in the control loop. If `ros2 topic hz /<ns>/nav_cmd_vel_stamped`
   falls below the 10 Hz `controller_frequency`, set `CostCritic.consider_footprint` back to

@@ -72,9 +72,9 @@ def generate_launch_description():
         description=(
             "Must match the value rover_navigation was launched with: it decides which frame "
             "mission waypoints are expressed in (<namespace>/odom, or <namespace>/map for "
-            "gps and slam)."
+            "gps, slam and amcl)."
         ),
-        choices=["odom", "gps", "slam"],
+        choices=["odom", "gps", "slam", "amcl"],
     )
 
     use_sim_time = LaunchConfiguration("use_sim_time")
