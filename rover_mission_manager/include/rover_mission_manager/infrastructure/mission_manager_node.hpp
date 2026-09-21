@@ -21,6 +21,7 @@
 
 #include <behaviortree_cpp/bt_factory.h>
 #include <diagnostic_msgs/msg/diagnostic_array.hpp>
+#include <nav2_ros_common/lifecycle_node.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rover_msgs/srv/set_mission.hpp>
 #include <sensor_msgs/msg/battery_state.hpp>
@@ -88,6 +89,9 @@ private:
     mission_manager::Params params_;
 
     BT::BehaviorTreeFactory factory_;
+    // Handle the BT leaves get as "node". rover_navigation's conditions and nav2_behavior_tree's
+    // plugins read a nav2::LifecycleNode (Nav 2 1.5), which this rclcpp::Node is not.
+    nav2::LifecycleNode::SharedPtr bt_node_;
     std::unique_ptr<BehaviorTreeRunner> mission_tree_runner_;
     std::unique_ptr<application::RunMissionUseCase> run_mission_use_case_;
 

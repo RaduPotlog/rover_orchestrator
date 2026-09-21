@@ -12,6 +12,7 @@ set(DEPENDENCIES
     generate_parameter_library
     geometry_msgs
     nav2_msgs
+    nav2_ros_common
     rclcpp
     rclcpp_action
     rover_msgs
@@ -56,6 +57,7 @@ target_link_libraries(${PROJECT_NAME}_ros
     ${diagnostic_msgs_TARGETS}
     ${geometry_msgs_TARGETS}
     ${nav2_msgs_TARGETS}
+    ${nav2_ros_common_TARGETS}
     ${rclcpp_TARGETS}
     ${rclcpp_action_TARGETS}
     ${rover_msgs_TARGETS}

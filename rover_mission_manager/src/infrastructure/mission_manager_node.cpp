@@ -82,9 +82,19 @@ void MissionManagerNode::initialize()
     mission_tree_runner_ = std::make_unique<BehaviorTreeRunner>(
         params_.tree_name, mission_blackboard, static_cast<unsigned>(params_.bt_server_port));
     // BT leaf plugins (rover_navigation's IsMotionLocked, and any nav2_behavior_tree plugin
-    // listed in ros_plugin_libs) look the node handle up on the blackboard under "node".
+    // listed in ros_plugin_libs) look the node handle up on the blackboard under "node" and
+    // expect a nav2::LifecycleNode, as bt_navigator provides. Handing them this rclcpp::Node
+    // made BT::Any::convert throw and the manager die at startup. The leaves spin their own
+    // callback groups, so the helper node needs no executor of its own. Global arguments are
+    // off so the launch file's `__node:=mission_manager` remap does not rename it too.
+    bt_node_ = std::make_shared<nav2::LifecycleNode>(
+        std::string(this->get_name()) + "_bt", this->get_namespace(),
+        rclcpp::NodeOptions()
+            .use_global_arguments(false)
+            .parameter_overrides({this->get_parameter("use_sim_time")}));
+
     mission_tree_runner_->initialize(factory_, [this](BT::Blackboard::Ptr blackboard) {
-        blackboard->set<rclcpp::Node::SharedPtr>("node", this->shared_from_this());
+        blackboard->set<nav2::LifecycleNode::SharedPtr>("node", bt_node_);
         blackboard->set<std::chrono::milliseconds>(
             "server_timeout",
             std::chrono::duration_cast<std::chrono::milliseconds>(
