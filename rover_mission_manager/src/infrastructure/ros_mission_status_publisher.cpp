@@ -20,12 +20,32 @@
 namespace rover_mission_manager::infrastructure
 {
 
+namespace
+{
+
+uint8_t toMsgState(domain::MissionState state)
+{
+    using rover_msgs::msg::MissionState;
+    switch (state) {
+        case domain::MissionState::kIdle: return MissionState::IDLE;
+        case domain::MissionState::kRunning: return MissionState::RUNNING;
+        case domain::MissionState::kHeldByLock: return MissionState::HELD;
+        case domain::MissionState::kSucceeded: return MissionState::SUCCEEDED;
+        case domain::MissionState::kFailed: return MissionState::FAILED;
+        case domain::MissionState::kCancelled: return MissionState::CANCELLED;
+    }
+    return MissionState::IDLE;
+}
+
+}  // namespace
+
 RosMissionStatusPublisher::RosMissionStatusPublisher(
-    rclcpp::Node * node, const std::string & topic)
+    rclcpp::Node * node, const std::string & status_topic, const std::string & state_topic)
 : node_(node)
 {
-    publisher_ = node_->create_publisher<std_msgs::msg::String>(
-        topic, rclcpp::QoS(rclcpp::KeepLast(1)).reliable().transient_local());
+    const auto latched = rclcpp::QoS(rclcpp::KeepLast(1)).reliable().transient_local();
+    publisher_ = node_->create_publisher<std_msgs::msg::String>(status_topic, latched);
+    state_publisher_ = node_->create_publisher<rover_msgs::msg::MissionState>(state_topic, latched);
 }
 
 void RosMissionStatusPublisher::publish(const domain::Mission & mission)
@@ -43,6 +63,15 @@ void RosMissionStatusPublisher::publish(const domain::Mission & mission)
     msg.data = out.str();
 
     publisher_->publish(msg);
+
+    rover_msgs::msg::MissionState state;
+    state.header.stamp = node_->now();
+    state.mission_id = mission.id();
+    state.state = toMsgState(mission.state());
+    state.current_index = static_cast<uint32_t>(mission.currentIndex());
+    state.total = static_cast<uint32_t>(mission.waypoints().size());
+    state.message = mission.failureReason();
+    state_publisher_->publish(state);
 
     RCLCPP_INFO_STREAM(node_->get_logger(), "Mission status: " << msg.data);
 }

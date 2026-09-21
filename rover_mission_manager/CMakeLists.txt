@@ -14,6 +14,7 @@ set(DEPENDENCIES
     nav2_msgs
     rclcpp
     rclcpp_action
+    rover_msgs
     rover_utils
     sensor_msgs
     std_msgs
@@ -39,6 +40,7 @@ set_property(TARGET ${PROJECT_NAME}_core PROPERTY POSITION_INDEPENDENT_CODE ON)
 # Infrastructure: ROS 2 and BehaviorTree adapters.
 add_library(${PROJECT_NAME}_ros STATIC
     src/infrastructure/mission_manager_node.cpp
+    src/infrastructure/mission_request.cpp
     src/infrastructure/nav2_navigation_adapter.cpp
     src/infrastructure/ros_mission_status_publisher.cpp)
 # rover_utils is header-only and exports no CMake targets, so its include directory has to
@@ -56,6 +58,7 @@ target_link_libraries(${PROJECT_NAME}_ros
     ${nav2_msgs_TARGETS}
     ${rclcpp_TARGETS}
     ${rclcpp_action_TARGETS}
+    ${rover_msgs_TARGETS}
     ${sensor_msgs_TARGETS}
     ${std_msgs_TARGETS}
     ${std_srvs_TARGETS})
@@ -83,6 +86,9 @@ if(BUILD_TESTING)
 
     ament_add_gtest(test_run_mission_use_case test/unit/test_run_mission_use_case.cpp)
     target_link_libraries(test_run_mission_use_case ${PROJECT_NAME}_core)
+
+    ament_add_gtest(test_mission_request test/unit/test_mission_request.cpp)
+    target_link_libraries(test_mission_request ${PROJECT_NAME}_ros)
 
     # Mechanically enforce that domain/ never grows a ROS or BehaviorTree dependency.
     add_test(

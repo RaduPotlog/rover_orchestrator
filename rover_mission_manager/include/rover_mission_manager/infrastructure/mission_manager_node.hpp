@@ -22,6 +22,7 @@
 #include <behaviortree_cpp/bt_factory.h>
 #include <diagnostic_msgs/msg/diagnostic_array.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <rover_msgs/srv/set_mission.hpp>
 #include <sensor_msgs/msg/battery_state.hpp>
 #include <std_msgs/msg/bool.hpp>
 #include <std_srvs/srv/set_bool.hpp>
@@ -73,6 +74,10 @@ private:
         const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
         std::shared_ptr<std_srvs::srv::SetBool::Response> response);
 
+    void setMissionCb(
+        const std::shared_ptr<rover_msgs::srv::SetMission::Request> request,
+        std::shared_ptr<rover_msgs::srv::SetMission::Response> response);
+
     /** @brief Sample the conditions the mission policy decides on. */
     domain::RoverConditions currentConditions() const;
 
@@ -91,6 +96,10 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::BatteryState>::SharedPtr battery_sub_;
     rclcpp::Subscription<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr diagnostics_sub_;
     rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr run_mission_srv_;
+    rclcpp::Service<rover_msgs::srv::SetMission>::SharedPtr set_mission_srv_;
+
+    std::string goal_frame_id_;
+    std::size_t missions_accepted_ = 0;
 
     std::atomic<bool> motion_locked_;
     std::atomic<bool> motion_lock_received_;

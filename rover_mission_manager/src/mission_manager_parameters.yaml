@@ -51,7 +51,7 @@ mission_manager:
 
   battery_topic:
     type: string
-    default_value: "battery"
+    default_value: "rover_battery/battery_status"
     description: sensor_msgs/BatteryState topic used for the mission abort threshold.
 
   abort_battery_fraction:
@@ -108,7 +108,12 @@ mission_manager:
   mission_status_topic:
     type: string
     default_value: "mission_status"
-    description: Topic the manager reports mission progress on.
+    description: Topic the manager reports mission progress on (std_msgs/String, for logs).
+
+  mission_state_topic:
+    type: string
+    default_value: "mission_state"
+    description: Topic the manager reports mission progress on as rover_msgs/MissionState.
 
   ros_communication_timeout:
     availability:
