@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>rover_indoor_nav_manager</name>
+  <version>0.1.0</version>
+  <description>
+    Indoor map library, places and runtime SLAM/AMCL switching for rover_a1, driven by the
+    rover_drive_interface web UI (Clearpath IndoorNav-style).
+  </description>
+  <maintainer email="potlogradu@gmail.com">radupotlog</maintainer>
+  <license>Apache License 2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
+
+  <exec_depend>builtin_interfaces</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>nav2_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>rover_msgs</exec_depend>
+  <exec_depend>rover_navigation</exec_depend>
+  <exec_depend>ros2launch</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
+  <exec_depend>tf2_ros_py</exec_depend>
+
+  <test_depend>ament_cmake_pytest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

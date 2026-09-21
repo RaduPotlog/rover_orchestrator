@@ -28,6 +28,7 @@
 
 #include "rover_mission_manager/domain/mission.hpp"
 #include "rover_mission_manager/domain/mission_policy.hpp"
+#include "rover_mission_manager/infrastructure/mission_request.hpp"
 #include "rover_mission_manager/infrastructure/nav2_navigation_adapter.hpp"
 #include "rover_mission_manager/infrastructure/ros_mission_status_publisher.hpp"
 
@@ -81,9 +82,19 @@ void MissionManagerNode::initialize()
     mission_tree_runner_ = std::make_unique<BehaviorTreeRunner>(
         params_.tree_name, mission_blackboard, static_cast<unsigned>(params_.bt_server_port));
     // BT leaf plugins (rover_navigation's IsMotionLocked, and any nav2_behavior_tree plugin
-    // listed in ros_plugin_libs) look the node handle up on the blackboard under "node".
+    // listed in ros_plugin_libs) look the node handle up on the blackboard under "node" and
+    // expect a nav2::LifecycleNode, as bt_navigator provides. Handing them this rclcpp::Node
+    // made BT::Any::convert throw and the manager die at startup. The leaves spin their own
+    // callback groups, so the helper node needs no executor of its own. Global arguments are
+    // off so the launch file's `__node:=mission_manager` remap does not rename it too.
+    bt_node_ = std::make_shared<nav2::LifecycleNode>(
+        std::string(this->get_name()) + "_bt", this->get_namespace(),
+        rclcpp::NodeOptions()
+            .use_global_arguments(false)
+            .parameter_overrides({this->get_parameter("use_sim_time")}));
+
     mission_tree_runner_->initialize(factory_, [this](BT::Blackboard::Ptr blackboard) {
-        blackboard->set<rclcpp::Node::SharedPtr>("node", this->shared_from_this());
+        blackboard->set<nav2::LifecycleNode::SharedPtr>("node", bt_node_);
         blackboard->set<std::chrono::milliseconds>(
             "server_timeout",
             std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -94,14 +105,15 @@ void MissionManagerNode::initialize()
                 std::chrono::duration<double>(params_.ros_communication_timeout.availability)));
     });
 
-    const auto goal_frame_id = resolveGoalFrameId();
+    goal_frame_id_ = resolveGoalFrameId();
 
     auto navigation = std::make_shared<Nav2NavigationAdapter>(
-        this, params_.navigate_to_pose_action, goal_frame_id,
+        this, params_.navigate_to_pose_action, goal_frame_id_,
         std::chrono::duration<double>(params_.ros_communication_timeout.availability));
 
     auto status_publisher =
-        std::make_shared<RosMissionStatusPublisher>(this, params_.mission_status_topic);
+        std::make_shared<RosMissionStatusPublisher>(
+            this, params_.mission_status_topic, params_.mission_state_topic);
 
     run_mission_use_case_ = std::make_unique<application::RunMissionUseCase>(
         std::move(navigation), std::move(status_publisher),
@@ -126,6 +138,11 @@ void MissionManagerNode::initialize()
                            &MissionManagerNode::runMissionCb, this, std::placeholders::_1,
                            std::placeholders::_2));
 
+    set_mission_srv_ = this->create_service<rover_msgs::srv::SetMission>(
+        "set_mission", std::bind(
+                           &MissionManagerNode::setMissionCb, this, std::placeholders::_1,
+                           std::placeholders::_2));
+
     const auto timer_period = std::chrono::duration<double>(1.0 / params_.timer_frequency);
     mission_tree_timer_ = this->create_wall_timer(
         std::chrono::duration_cast<std::chrono::nanoseconds>(timer_period),
@@ -134,7 +151,7 @@ void MissionManagerNode::initialize()
     RCLCPP_INFO_STREAM(
         this->get_logger(), "Mission manager ready: ticking '"
                                 << params_.tree_name << "' at " << params_.timer_frequency
-                                << " Hz, goals in frame '" << goal_frame_id << "', Groot2 on "
+                                << " Hz, goals in frame '" << goal_frame_id_ << "', Groot2 on "
                                 << mission_tree_runner_->grootPort() << ".");
 }
 
@@ -247,14 +264,41 @@ void MissionManagerNode::runMissionCb(
         return;
     }
 
-    // Placeholder mission source. rover_msgs has no mission message yet (see README), so
-    // until one exists this service only starts the demo mission on the blackboard.
+    // Starting needs waypoints, which only set_mission carries.
     response->success = false;
     response->message =
-        "No mission source configured. Publish waypoints through a mission interface, or "
-        "drive the tree directly; see rover_mission_manager/README.md.";
+        "run_mission only cancels (data: false). Start a mission with set_mission "
+        "(rover_msgs/srv/SetMission).";
 
     RCLCPP_WARN(this->get_logger(), "%s", response->message.c_str());
+}
+
+void MissionManagerNode::setMissionCb(
+    const std::shared_ptr<rover_msgs::srv::SetMission::Request> request,
+    std::shared_ptr<rover_msgs::srv::SetMission::Response> response)
+{
+    std::string error;
+    auto mission = missionFromRequest(
+        *request, goal_frame_id_, "mission-" + std::to_string(missions_accepted_ + 1), error);
+
+    if (!mission) {
+        response->success = false;
+        response->message = error;
+        RCLCPP_WARN(this->get_logger(), "set_mission rejected: %s", error.c_str());
+        return;
+    }
+
+    ++missions_accepted_;
+    const auto id = mission->id();
+    const auto count = mission->waypoints().size();
+
+    // accept() cancels whatever is in flight, so a new GoTo simply replaces the old mission.
+    run_mission_use_case_->accept(std::move(*mission));
+
+    response->success = true;
+    response->message =
+        "Mission '" + id + "' started with " + std::to_string(count) + " waypoint(s).";
+    RCLCPP_INFO(this->get_logger(), "%s", response->message.c_str());
 }
 
 void MissionManagerNode::timerCb()

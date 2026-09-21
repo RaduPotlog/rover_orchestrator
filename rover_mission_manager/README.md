@@ -69,20 +69,29 @@ decides whether waypoints are interpreted in `<namespace>/odom` (`odom`) or
 | Direction | Name | Type |
 |---|---|---|
 | in | `motion_lock` | `std_msgs/Bool` — from `rover_motion_lock_node` |
-| in | `battery` | `sensor_msgs/BatteryState` |
+| in | `rover_battery/battery_status` | `sensor_msgs/BatteryState` (`battery_topic`) |
 | in | `diagnostics` | `diagnostic_msgs/DiagnosticArray` — `rover_rs16_lidar`'s health task |
-| out | `mission_status` | `std_msgs/String`, latched |
-| service | `run_mission` | `std_srvs/SetBool` — `false` cancels |
+| out | `mission_status` | `std_msgs/String`, latched — one line, for logs |
+| out | `mission_state` | `rover_msgs/MissionState`, latched — for UIs (rover_drive_interface) |
+| service | `set_mission` | `rover_msgs/SetMission` — replace the active mission with these waypoints and start it |
+| service | `run_mission` | `std_srvs/SetBool` — `false` cancels; `true` is refused (use `set_mission`) |
 | action client | `navigate_to_pose` | `nav2_msgs/action/NavigateToPose` |
 
-### Mission source — not finished
+### Mission source
 
-`run_mission` currently only implements **cancel** (`data: false`). There is no way to hand
-the manager a list of waypoints yet, because `rover_msgs` has no mission message and it lives
-in the `rover_ros` repository, so adding one is a cross-repo change. `RunMissionUseCase` is
-complete and tested; what is missing is only the inbound interface. The two options are a
-`rover_msgs/Mission` message plus a `SetMission` service, or an orchestrator-side interfaces
-package. Deliberately left as a decision rather than guessed at.
+`set_mission` (`rover_msgs/srv/SetMission`) takes a list of `geometry_msgs/PoseStamped`
+waypoints and hands them to `RunMissionUseCase::accept`. That cancels anything in flight, so a
+GoTo from the drive UI is simply a one-waypoint mission that replaces the previous one.
+
+- **Frames:** every waypoint must leave `frame_id` empty or use the manager's goal frame. The
+  manager has no TF buffer, so a pose in another frame is rejected rather than driven to in
+  the wrong frame.
+- **Rejected requests:** an empty list, or a non-finite position or zero quaternion.
+- **Ids:** an empty `mission_id` becomes `mission-<n>`.
+- **Cancelling:** `run_mission` with `data: false`.
+
+The request translation lives in `infrastructure/mission_request.cpp` and is unit tested in
+`test/unit/test_mission_request.cpp`.
 
 ## Safety behaviour
 

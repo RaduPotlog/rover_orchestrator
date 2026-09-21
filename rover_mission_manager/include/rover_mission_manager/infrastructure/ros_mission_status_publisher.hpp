@@ -18,6 +18,7 @@
 #include <string>
 
 #include <rclcpp/rclcpp.hpp>
+#include <rover_msgs/msg/mission_state.hpp>
 #include <std_msgs/msg/string.hpp>
 
 #include "rover_mission_manager/domain/ports/mission_status_publisher_port.hpp"
@@ -26,22 +27,25 @@ namespace rover_mission_manager::infrastructure
 {
 
 /**
- * @brief Publishes mission status as a std_msgs/String on `mission_status`.
+ * @brief Publishes mission progress twice: a typed rover_msgs/MissionState on
+ * `mission_state` for UIs (rover_drive_interface), and the original one-line std_msgs/String
+ * on `mission_status` for logs and existing tools.
  *
- * A String rather than a typed message because rover_msgs (in the rover_ros repository) has
- * no mission message and adding one is a cross-repo change. The port keeps that swap cheap.
- * Latched (transient_local) so an operator tool attaching later still sees the current state.
+ * Both are latched (transient_local, depth 1) so a tool attaching later still sees the
+ * current state.
  */
 class RosMissionStatusPublisher : public domain::ports::MissionStatusPublisherPort
 {
 public:
-    RosMissionStatusPublisher(rclcpp::Node * node, const std::string & topic);
+    RosMissionStatusPublisher(
+        rclcpp::Node * node, const std::string & status_topic, const std::string & state_topic);
 
     void publish(const domain::Mission & mission) override;
 
 private:
     rclcpp::Node * node_;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_;
+    rclcpp::Publisher<rover_msgs::msg::MissionState>::SharedPtr state_publisher_;
 };
 
 }  // namespace rover_mission_manager::infrastructure

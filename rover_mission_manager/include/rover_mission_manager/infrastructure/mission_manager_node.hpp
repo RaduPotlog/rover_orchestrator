@@ -21,7 +21,9 @@
 
 #include <behaviortree_cpp/bt_factory.h>
 #include <diagnostic_msgs/msg/diagnostic_array.hpp>
+#include <nav2_ros_common/lifecycle_node.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <rover_msgs/srv/set_mission.hpp>
 #include <sensor_msgs/msg/battery_state.hpp>
 #include <std_msgs/msg/bool.hpp>
 #include <std_srvs/srv/set_bool.hpp>
@@ -73,6 +75,10 @@ private:
         const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
         std::shared_ptr<std_srvs::srv::SetBool::Response> response);
 
+    void setMissionCb(
+        const std::shared_ptr<rover_msgs::srv::SetMission::Request> request,
+        std::shared_ptr<rover_msgs::srv::SetMission::Response> response);
+
     /** @brief Sample the conditions the mission policy decides on. */
     domain::RoverConditions currentConditions() const;
 
@@ -83,6 +89,9 @@ private:
     mission_manager::Params params_;
 
     BT::BehaviorTreeFactory factory_;
+    // Handle the BT leaves get as "node". rover_navigation's conditions and nav2_behavior_tree's
+    // plugins read a nav2::LifecycleNode (Nav 2 1.5), which this rclcpp::Node is not.
+    nav2::LifecycleNode::SharedPtr bt_node_;
     std::unique_ptr<BehaviorTreeRunner> mission_tree_runner_;
     std::unique_ptr<application::RunMissionUseCase> run_mission_use_case_;
 
@@ -91,6 +100,10 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::BatteryState>::SharedPtr battery_sub_;
     rclcpp::Subscription<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr diagnostics_sub_;
     rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr run_mission_srv_;
+    rclcpp::Service<rover_msgs::srv::SetMission>::SharedPtr set_mission_srv_;
+
+    std::string goal_frame_id_;
+    std::size_t missions_accepted_ = 0;
 
     std::atomic<bool> motion_locked_;
     std::atomic<bool> motion_lock_received_;

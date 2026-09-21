@@ -6,7 +6,10 @@ Mechatronics Academy's Rover A1 autonomy stack, running on the orchestrator comp
   and `IsLidarHealthy` behavior-tree conditions and the SLAM map autosaver.
 - [`rover_mission_manager`](rover_mission_manager/README.md) - behavior-tree mission
   supervision on top of Nav 2.
-- [`rover_autonomy`](rover_autonomy/README.md) - metapackage grouping both.
+- [`rover_indoor_nav_manager`](rover_indoor_nav_manager/README.md) - indoor map library,
+  places and runtime SLAM ↔ AMCL switching (`localization_source:=indoor`) for the
+  rover_drive_interface web UI.
+- [`rover_autonomy`](rover_autonomy/README.md) - metapackage grouping them.
 
 ## Quick start
 

@@ -25,7 +25,9 @@
       motion_lock_topic: motion_lock
       motion_lock_timeout: 0.5
 
-      battery_topic: battery
+      # rover_battery publishes here; the old default `battery` matched nothing, so the
+      # abort threshold never fired.
+      battery_topic: rover_battery/battery_status
       abort_battery_fraction: 0.10
 
       # rover_rs16_lidar's only health signal is this diagnostic_updater task -- it exposes no
@@ -47,6 +49,7 @@
       goal_frame_id: ""
 
       mission_status_topic: mission_status
+      mission_state_topic: mission_state
 
       ros_communication_timeout:
         availability: 2.0
