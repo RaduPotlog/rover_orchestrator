@@ -66,6 +66,10 @@ When navigation runs on a different machine than the rover, both must share the 
   `nav2_amcl` when `localization_source:=amcl`. Used for `odom`, `gps` and `amcl`.
 - `slam_launch.py` - `slam_toolbox` plus `map_saver` and `lifecycle_manager_slam`. Used for
   `localization_source:=slam`, and the only mode in which `map_autosaver_node` runs.
+- `indoor_localization.launch.py` - the swappable half of `localization_source:=indoor`.
+  `mode:=mapping` includes `slam_launch.py`, and `mode:=localization` includes
+  `localization.launch.py` with AMCL, uncomposed. It is not started by bringup: it is run and
+  replaced at runtime by `rover_indoor_nav_manager`, which bringup starts in this mode.
 
 ## Running
 
@@ -121,7 +125,7 @@ Arguments of `bringup.launch.py` (`ros2 launch rover_navigation bringup.launch.p
 | `observation_topic_type` | `laserscan` | `laserscan` consumes `rover_rs16_lidar`'s flattened scan directly; `pointcloud` runs `pointcloud_crop_box` over the raw RS16 cloud first. |
 | `params_file` | `<share>/rover_navigation/config/rover_nav_params.yaml` | Parameter file for all Nav 2 nodes. |
 | `robot_model` | `$ROBOT_MODEL_NAME`, else `rover_a1` | Robot model; selects the footprint bounding box. |
-| `localization_source` | `odom` | Where the Nav 2 global frame comes from: `odom`, `gps`, `slam` or `amcl`. Replaces the old `slam` boolean. See below. |
+| `localization_source` | `odom` | Where the Nav 2 global frame comes from: `odom`, `gps`, `slam`, `amcl` or `indoor`. Replaces the old `slam` boolean. See below. |
 | `initial_pose_x` / `_y` / `_yaw` | `$ROVER_AMCL_INITIAL_POSE_{X,Y,YAW}`, else `0.0` | Pose AMCL is seeded with at startup, in `<namespace>/map`. Only used with `localization_source:=amcl`. |
 | `use_composition` | `True` | Load all servers into one component container. |
 | `use_respawn` | `False` | Respawn a crashed node. Only when composition is disabled. |
@@ -195,6 +199,7 @@ exclusive. This argument replaces the old `slam` boolean.
 | `gps` | `<namespace>/map` | `rover_ekf_global_node` (`rover_localization`) | `ROVER_USE_GPS` is set on the rover. Outdoors only — see the warning below. |
 | `slam` | `<namespace>/map` | `slam_toolbox` | Mapping a new area. Requires `ROVER_USE_GPS` **off**. |
 | `amcl` | `<namespace>/map` | `nav2_amcl` | **Indoors.** Matches the lidar scan against a static map. Needs a real map (build one in `slam` mode first), `ROVER_USE_LIDAR=true`, and `ROVER_GPS_PUBLISH_MAP_TF=false`. |
+| `indoor` | `<namespace>/map` | `slam_toolbox` while mapping, `nav2_amcl` on a saved map | **Indoors, driven from the web UI.** [`rover_indoor_nav_manager`](../rover_indoor_nav_manager/README.md) switches between the two at runtime and keeps maps, places and the last pose in `/maps`. `map` and `initial_pose_*` are ignored. Same requirements as `amcl`. |
 
 > **Do not use `gps` mode indoors.** It does not fail loudly, it fails silently.
 > `rover_gps_heading_node` needs roughly 9 m of straight driving with a horizontal

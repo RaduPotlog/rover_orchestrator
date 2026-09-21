@@ -44,7 +44,9 @@ _MISSION_LAUNCH = os.path.join(
     _NAV_SHARE, "..", "rover_mission_manager", "launch", "rover_mission_manager.launch.py"
 )
 
-MODES = ["odom", "gps", "slam", "amcl"]
+MODES = ["odom", "gps", "slam", "amcl", "indoor"]
+# Modes that bring up AMCL when localization.launch.py runs.
+AMCL_MODES = ("amcl", "indoor")
 
 def _load(path, name):
     spec = importlib.util.spec_from_file_location(name, path)
@@ -141,14 +143,14 @@ def test_amcl_starts_only_in_amcl_mode(use_composition):
     for source in MODES:
         plain, composable, _, _ = _localization_actions(source, use_composition)
         started = composable if use_composition == "True" else plain
-        assert ("amcl" in started) == (source == "amcl"), (source, use_composition, started)
+        assert ("amcl" in started) == (source in AMCL_MODES), (source, use_composition, started)
         assert "map_server" in started, (source, started)
 
 @pytest.mark.parametrize("use_composition", ["True", "False"])
 def test_lifecycle_manager_manages_amcl_only_in_amcl_mode(use_composition):
     for source in MODES:
         _, _, node_names, _ = _localization_actions(source, use_composition)
-        expected = ["map_server", "amcl"] if source == "amcl" else ["map_server"]
+        expected = ["map_server", "amcl"] if source in AMCL_MODES else ["map_server"]
         # Order matters: lifecycle_manager transitions in list order, and AMCL blocks
         # waiting for the map, so map_server has to be activated first.
         assert node_names == expected, (source, use_composition, node_names)
@@ -182,3 +184,80 @@ def test_bringup_forwards_localization_source_to_localization_launch():
     assert "localization_source" in forwarded, forwarded
     for name in ("initial_pose_x", "initial_pose_y", "initial_pose_yaw"):
         assert name in forwarded, (name, forwarded)
+
+
+def _included_file(action):
+    """File name of an IncludeLaunchDescription, from its (unresolved) location."""
+    import re
+
+    match = re.search(r"([\w.]+\.py)['\")]*$", str(action.launch_description_source.location))
+    return match.group(1) if match else str(action.launch_description_source.location)
+
+
+def _bringup_actions(source):
+    """Which of bringup's grouped actions run for a localization_source."""
+    from launch.actions import IncludeLaunchDescription
+
+    launch_description = _nav_launch("bringup.launch.py").generate_launch_description()
+    context = LaunchContext()
+    context.launch_configurations.update({
+        "localization_source": source,
+        "namespace": "rover",
+        "use_composition": "True",
+        "observation_topic_type": "laserscan",
+    })
+    running = []
+    for entity in launch_description.entities:
+        if not isinstance(entity, GroupAction):
+            continue
+        for action in entity._GroupAction__actions:
+            condition = action.condition
+            if condition is not None and not condition.evaluate(context):
+                continue
+            if isinstance(action, IncludeLaunchDescription):
+                running.append(_included_file(action))
+            elif isinstance(action, Node):
+                running.append(_perform(context, action.node_executable))
+    return running
+
+
+@pytest.mark.parametrize("source", MODES)
+def test_bringup_routes_localization_by_source(source):
+    running = _bringup_actions(source)
+    assert ("slam_launch.py" in running) == (source == "slam"), running
+    assert ("localization.launch.py" in running) == (source not in ("slam", "indoor")), running
+    assert ("indoor_nav_manager_node" in running) == (source == "indoor"), running
+    assert "rover_nav.launch.py" in running, running
+
+
+def _indoor_includes(mode):
+    """Included files for a mode, with their literal (non-substitution) arguments."""
+    from launch.actions import IncludeLaunchDescription
+    from launch.substitutions import TextSubstitution
+
+    launch_description = _nav_launch("indoor_localization.launch.py").generate_launch_description()
+    context = LaunchContext()
+    context.launch_configurations.update({"mode": mode})
+    group = [e for e in launch_description.entities if isinstance(e, GroupAction)][0]
+    included = {}
+    for action in group._GroupAction__actions:
+        if isinstance(action, IncludeLaunchDescription) and action.condition.evaluate(context):
+            literal = {}
+            for key, value in action.launch_arguments:
+                # Literals are str or [TextSubstitution]; everything else is a LaunchConfiguration.
+                parts = value if isinstance(value, (list, tuple)) else [value]
+                if all(isinstance(v, (str, TextSubstitution)) for v in parts):
+                    literal[_perform(context, key)] = "".join(
+                        v if isinstance(v, str) else _perform(context, [v]) for v in parts)
+            included[_included_file(action)] = literal
+    return included
+
+
+def test_indoor_localization_swaps_slam_and_amcl():
+    assert list(_indoor_includes("mapping")) == ["slam_launch.py"]
+    localization = _indoor_includes("localization")
+    assert list(localization) == ["localization.launch.py"]
+    args = localization["localization.launch.py"]
+    # AMCL on, and out of nav2_container so stopping this launch never touches Nav 2.
+    assert args["localization_source"] == "indoor"
+    assert args["use_composition"] == "False"

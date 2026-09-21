@@ -107,14 +107,17 @@ def generate_launch_description():
     # test/launch/test_localization_launch.py asserts all three match, because a silent
     # divergence between them is a field bug rather than a startup error. 'slam' is never
     # routed here (bringup includes slam_launch.py instead) but stays in the list for that.
+    # 'indoor' reaches here only through indoor_localization.launch.py, which
+    # rover_indoor_nav_manager runs when it switches to a saved map: it means AMCL too.
     declare_localization_source_cmd = DeclareLaunchArgument(
         "localization_source",
         default_value="odom",
         description=(
-            "Only 'amcl' starts nav2_amcl; every other value brings up map_server alone. "
+            "Only 'amcl' and 'indoor' start nav2_amcl; every other value brings up map_server "
+            "alone. "
             "See bringup.launch.py for what each value means."
         ),
-        choices=["odom", "gps", "slam", "amcl"],
+        choices=["odom", "gps", "slam", "amcl", "indoor"],
     )
 
     declare_initial_pose_x_cmd = DeclareLaunchArgument(
@@ -146,7 +149,7 @@ def generate_launch_description():
         ComposableNode has no `condition` argument either. Resolving the configuration
         here turns both problems back into ordinary Python.
         """
-        amcl_enabled = context.perform_substitution(localization_source) == "amcl"
+        amcl_enabled = context.perform_substitution(localization_source) in ("amcl", "indoor")
 
         # map_server first: lifecycle_manager transitions in list order, and AMCL blocks
         # waiting for the map, so activating the publisher first avoids a startup stall.

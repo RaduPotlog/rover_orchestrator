@@ -21,7 +21,7 @@ from launch.actions import (
     IncludeLaunchDescription,
     SetEnvironmentVariable,
 )
-from launch.conditions import IfCondition, UnlessCondition
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (
     EnvironmentVariable,
@@ -130,9 +130,15 @@ def generate_launch_description():
             "\t  which matches the lidar scan against the static map from map_server.\n"
             "\t  Indoor mode. Needs a real map (map:=, NOT the default empty_world.yaml -\n"
             "\t  every particle scores identically on an empty map and AMCL never\n"
-            "\t  converges), ROVER_USE_LIDAR=true, and ROVER_GPS_PUBLISH_MAP_TF=false."
+            "\t  converges), ROVER_USE_LIDAR=true, and ROVER_GPS_PUBLISH_MAP_TF=false.\n"
+            "\t- 'indoor': the global frame is <namespace>/map, and rover_indoor_nav_manager\n"
+            "\t  owns localization at runtime: it runs slam_toolbox while a map is being\n"
+            "\t  built and map_server + AMCL on a saved map (from /maps), and switches\n"
+            "\t  between them on request from the drive UI (rover_drive_interface). `map`\n"
+            "\t  and initial_pose_* are ignored; the manager remembers the last map and pose.\n"
+            "\t  Same requirements as 'amcl'."
         ),
-        choices=["odom", "gps", "slam", "amcl"],
+        choices=["odom", "gps", "slam", "amcl", "indoor"],
     )
     declare_initial_pose_x_arg = DeclareLaunchArgument(
         "initial_pose_x",
@@ -187,6 +193,12 @@ def generate_launch_description():
     )
 
     slam = PythonExpression(["'", localization_source, "' == 'slam'"])
+    indoor = PythonExpression(["'", localization_source, "' == 'indoor'"])
+    # localization.launch.py (map_server, + AMCL for 'amcl') runs for every fixed mode; slam
+    # has its own launch, and in 'indoor' rover_indoor_nav_manager starts one or the other.
+    static_localization = PythonExpression(
+        ["'", localization_source, "' not in ('slam', 'indoor')"]
+    )
 
     # Nav 2's global frame. In 'odom' mode it stays <namespace>/odom (no map -> odom exists);
     # in 'gps', 'slam' and 'amcl' it is <namespace>/map, and the transform comes from whichever
@@ -302,7 +314,7 @@ def generate_launch_description():
                 PythonLaunchDescriptionSource(
                     PathJoinSubstitution([launch_dir, "localization.launch.py"])
                 ),
-                condition=UnlessCondition(slam),
+                condition=IfCondition(static_localization),
                 launch_arguments={
                     "autostart": autostart,
                     "container_name": "nav2_container",
@@ -332,6 +344,25 @@ def generate_launch_description():
                     "use_respawn": use_respawn,
                     "container_name": "nav2_container",
                 }.items(),
+            ),
+            # 'indoor': the manager gets the namespaced params file so the localization
+            # sub-stack it launches sees the same <namespace>/ substitutions as Nav 2. It is
+            # not a declared dependency of rover_navigation (it depends on this package's
+            # launch files); rover_autonomy pulls both in.
+            Node(
+                condition=IfCondition(indoor),
+                package="rover_indoor_nav_manager",
+                executable="indoor_nav_manager_node",
+                name="indoor_nav_manager",
+                parameters=[
+                    {
+                        "localization_params_file": params_file,
+                        "use_sim_time": use_sim_time,
+                        "log_level": log_level,
+                    }
+                ],
+                arguments=["--ros-args", "--log-level", log_level],
+                output="screen",
             ),
             Node(
                 condition=IfCondition(slam),
