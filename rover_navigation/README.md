@@ -251,8 +251,8 @@ least one loop. `map_autosaver_node` calls `map_saver` every 15 s and writes
 
 ```bash
 ros2 topic echo /rover/map --field info --once    # check it looks sane
-ls -l /maps/                                      # over SSH, port 2222
-scp -P 2222 root@<device>:/maps/map.* .           # back it up off the device
+ls -l /maps/                                      # over SSH, port 24
+scp -P 24 root@<device>:/maps/map.* .             # back it up off the device
 ```
 
 ### 2. Navigate against it
