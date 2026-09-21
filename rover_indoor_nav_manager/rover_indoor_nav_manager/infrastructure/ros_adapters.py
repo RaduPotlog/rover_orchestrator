@@ -152,32 +152,58 @@ def initial_pose_msg(frame: str, pose: Pose2D, sigma_xy: float, sigma_yaw: float
 
 
 class RosInitialPoseSeeder:
-    """Publishes AMCL's initialpose once AMCL is actually up.
+    """Publishes AMCL's initialpose once AMCL is actually up - in the background.
 
     AMCL only takes an initial pose while it is active and has its map, so the seeder waits
     for a subscriber on `initialpose` and for `map -> base_link` to resolve (AMCL publishing
-    map -> odom) before publishing. Runs on the manager's worker thread, never the executor.
+    map -> odom). On a cold start that can take a minute - in the Gazebo sim AMCL received its
+    map 61 s after launch - so the wait runs in its own thread instead of blocking the manager's
+    worker (pose saving, service calls). Starting a new seed or calling cancel() (the
+    localization stack is being stopped) abandons a pending one.
     """
 
     def __init__(self, node: Node, frame: str, pose_source: RobotPoseSource,
-                 timeout: float = 20.0):
+                 timeout: float = 120.0):
         self._node = node
         self._frame = frame
         self._pose_source = pose_source
         self._timeout = timeout
         self._pub = node.create_publisher(PoseWithCovarianceStamped, 'initialpose', 1)
+        self._generation = 0
+        self._lock = threading.Lock()
 
     def seed(self, pose: Pose2D, sigma_xy: float, sigma_yaw: float) -> None:
+        with self._lock:
+            self._generation += 1
+            generation = self._generation
+        threading.Thread(
+            target=self._wait_and_publish, args=(generation, pose, sigma_xy, sigma_yaw),
+            name='amcl_seed', daemon=True).start()
+
+    def cancel(self) -> None:
+        with self._lock:
+            self._generation += 1
+
+    def _current(self, generation: int) -> bool:
+        with self._lock:
+            return generation == self._generation
+
+    def _wait_and_publish(self, generation: int, pose: Pose2D, sigma_xy: float,
+                          sigma_yaw: float) -> None:
+        log = self._node.get_logger()
         deadline = time.monotonic() + self._timeout
         while time.monotonic() < deadline:
+            if not self._current(generation):
+                return  # superseded, or localization stopped
             if (self._pub.get_subscription_count() > 0
                     and self._pose_source.current_pose() is not None):
                 self._pub.publish(initial_pose_msg(
                     self._frame, pose, sigma_xy, sigma_yaw,
                     self._node.get_clock().now().to_msg()))
-                self._node.get_logger().info(
-                    f'AMCL re-seeded at ({pose.x:.2f}, {pose.y:.2f}, {pose.theta:.2f}) with '
-                    f'sigma {sigma_xy:.2f} m / {math.degrees(sigma_yaw):.0f} deg')
+                log.info(f'AMCL re-seeded at ({pose.x:.2f}, {pose.y:.2f}, {pose.theta:.2f}) with '
+                         f'sigma {sigma_xy:.2f} m / {math.degrees(sigma_yaw):.0f} deg')
                 return
-            time.sleep(0.2)
-        raise RuntimeError(f'AMCL did not come up within {self._timeout:.0f} s')
+            time.sleep(0.25)
+        if self._current(generation):
+            log.warning(f'AMCL did not come up within {self._timeout:.0f} s; it keeps its default '
+                        'start spread - use Set pose or Find me if it does not converge')

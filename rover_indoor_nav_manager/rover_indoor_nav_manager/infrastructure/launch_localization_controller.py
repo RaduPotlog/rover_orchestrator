@@ -65,6 +65,8 @@ class LaunchLocalizationController:
             return self._process is not None and self._process.poll() is None
 
     def stop(self) -> None:
+        if self._seeder is not None:
+            self._seeder.cancel()  # a pending seed must not land on the next stack
         with self._lock:
             process, self._process = self._process, None
         if process is None:

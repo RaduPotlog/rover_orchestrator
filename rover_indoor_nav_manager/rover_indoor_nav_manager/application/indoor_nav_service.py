@@ -235,8 +235,8 @@ class IndoorNavService:
                 pose, self._restore_sigma_xy, self._restore_sigma_yaw)
         except Exception as error:  # noqa: BLE001 - AMCL still runs with its default spread
             return f'Localized from the remembered pose (could not widen the search: {error}).'
-        return ('Localized from the last remembered pose. If the rover was moved while off, '
-                'use Set pose or Find me.')
+        return ('Localized from the last remembered pose (search widened once AMCL has its map). '
+                'If the rover was moved while off, use Set pose or Find me.')
 
     def _switching(self, message: str) -> None:
         self._set_state(self._state.with_(mode=LocalizationMode.SWITCHING, message=message))

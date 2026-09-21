@@ -74,7 +74,8 @@ class LocalizationController(ABC):
         """Re-seed the running AMCL at `pose` with a wider spread (standard deviations).
 
         Used when the seed is only a remembered pose, so AMCL can still converge if the rover
-        was moved a little while it was off. Blocks until AMCL is up or gives up.
+        was moved a little while it was off. Returns at once; the seed is published when AMCL
+        is up (which can take a minute on a cold start) and dropped if localization stops first.
         """
 
     @abstractmethod

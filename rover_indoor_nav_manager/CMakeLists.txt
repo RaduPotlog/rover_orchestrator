@@ -18,6 +18,7 @@ if(BUILD_TESTING)
   ament_add_pytest_test(test_launch_controller test/unit/test_launch_controller.py)
   ament_add_pytest_test(test_motion test/unit/test_motion.py)
   ament_add_pytest_test(test_initial_pose_msg test/unit/test_initial_pose_msg.py)
+  ament_add_pytest_test(test_initial_pose_seeder test/unit/test_initial_pose_seeder.py)
   add_test(
     NAME check_domain_purity
     COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check_domain_purity.sh ${CMAKE_CURRENT_SOURCE_DIR})
