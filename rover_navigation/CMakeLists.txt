@@ -103,6 +103,12 @@ if(BUILD_TESTING)
     ament_add_gtest(test_autosave_map_use_case test/unit/test_autosave_map_use_case.cpp)
     target_link_libraries(test_autosave_map_use_case ${PROJECT_NAME}_core)
 
+    # The rover's E-Stop condition inside a navigation tree. Its contract is entirely about
+    # fail-safe defaults - no message and a stale message must both read as locked - and those
+    # paths fail in the field as "navigation carried on" rather than as an error.
+    ament_add_gtest(test_is_motion_locked test/unit/test_is_motion_locked.cpp)
+    target_link_libraries(test_is_motion_locked is_motion_locked_bt_node)
+
     # Mechanically enforce that domain/ never grows a ROS or BehaviorTree dependency. Plain
     # CTest add_test (pass/fail via exit code) rather than ament_add_test, since the script
     # has no JUnit-XML result-file contract to satisfy.
