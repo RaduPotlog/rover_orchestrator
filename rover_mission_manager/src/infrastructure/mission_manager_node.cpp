@@ -78,17 +78,14 @@ MissionManagerNode::~MissionManagerNode()
 
 std::string MissionManagerNode::resolveGoalFrameId() const
 {
+    // Nav 2 frame ids are "rover/odom", not "/rover/odom". Waypoints are validated against the
+    // stripped form (missionFromRequest), so goals must be sent in it too.
     if (!params_.goal_frame_id.empty()) {
-        return params_.goal_frame_id;
+        return stripLeadingSlash(params_.goal_frame_id);
     }
 
-    std::string ns = this->get_namespace();
-
-    // get_namespace() is "/" at the root and "/rover" otherwise. Strip the leading slash:
-    // Nav 2 frame ids are "rover/odom", not "/rover/odom".
-    if (!ns.empty() && ns.front() == '/') {
-        ns.erase(0, 1);
-    }
+    // get_namespace() is "/" at the root and "/rover" otherwise.
+    const std::string ns = stripLeadingSlash(this->get_namespace());
 
     return ns.empty() ? "odom" : ns + "/odom";
 }

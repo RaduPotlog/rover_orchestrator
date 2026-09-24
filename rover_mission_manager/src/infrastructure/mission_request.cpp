@@ -25,18 +25,18 @@ namespace rover_mission_manager::infrastructure
 namespace
 {
 
-std::string stripLeadingSlash(const std::string & frame)
-{
-    const auto first = frame.find_first_not_of('/');
-    return first == std::string::npos ? std::string() : frame.substr(first);
-}
-
 double yawFromQuaternion(const geometry_msgs::msg::Quaternion & q)
 {
     return std::atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
 }
 
 }  // namespace
+
+std::string stripLeadingSlash(const std::string & frame)
+{
+    const auto first = frame.find_first_not_of('/');
+    return first == std::string::npos ? std::string() : frame.substr(first);
+}
 
 std::optional<domain::Mission> missionFromRequest(
     const rover_msgs::srv::SetMission::Request & request, const std::string & goal_frame_id,

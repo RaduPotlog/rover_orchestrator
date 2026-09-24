@@ -118,8 +118,11 @@ protected:
     }
 
     /**
-     * @brief Keep spinning for @p duration. Only for "nothing further happens" checks, which
-     * have no event to wait on; everything else waits on a condition with spinUntil().
+     * @brief Keep spinning for @p duration. Only for waits with no event to observe: "nothing
+     * further happens" checks, and letting the goal response reach the adapter (which exposes
+     * no hook for it). Everything else waits on a condition with spinUntil(). A window that
+     * turns out too short under load does not fail those tests; it only exercises the
+     * cancel-before-response path, which has its own test.
      */
     void spinFor(std::chrono::milliseconds duration)
     {
@@ -190,7 +193,8 @@ TEST_F(Nav2NavigationAdapterTest, CancelAfterTheGoalResponseCancelsTheGoal)
 {
     dispatch();
     ASSERT_TRUE(spinUntil([&] { return navigator_->goal() != nullptr; }));
-    // Let the goal response reach the adapter too, so it holds the handle.
+    // Let the goal response reach the adapter too, so it holds the handle. No observable
+    // event for this; see spinFor().
     spinFor(200ms);
 
     adapter_->cancel();
