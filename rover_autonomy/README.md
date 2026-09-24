@@ -8,6 +8,7 @@ builds nothing itself; it exists so the whole stack can be built and installed w
 |---|---|
 | [`rover_navigation`](../rover_navigation/README.md) | Nav 2 configuration, the `IsMotionLocked` and `IsLidarHealthy` BT condition plugins and the SLAM map autosaver. |
 | [`rover_mission_manager`](../rover_mission_manager/README.md) | Behavior-tree-driven mission supervision, dispatching Nav 2 actions. |
+| [`rover_indoor_nav_manager`](../rover_indoor_nav_manager/README.md) | Indoor map library, places, and runtime SLAM ↔ AMCL switching. |
 
 ```bash
 cd ~/ros2_ws/rover_a1
