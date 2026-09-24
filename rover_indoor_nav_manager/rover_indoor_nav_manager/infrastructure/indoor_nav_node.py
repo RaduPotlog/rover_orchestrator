@@ -50,6 +50,9 @@ class IndoorNavNode(Node):
         self.declare_parameter('save_map_timeout', 5.0)
         self.declare_parameter('pose_record_period', 5.0)
         self.declare_parameter('auto_start', True)
+        # Run the swappable SLAM/AMCL launch as Zenoh clients, so stopping it cannot stall
+        # platform processes through direct peer links (see launch_localization_controller.py).
+        self.declare_parameter('zenoh_client_mode', True)
         # Save the pose the moment the rover comes to rest (plus pose_record_period as a backstop).
         # The drive controller's wheel odometry: always there when the rover can drive (the EKF's
         # odometry/filtered is not, e.g. in the Gazebo sim), and wheel speed is what "stopped" means.
@@ -80,7 +83,8 @@ class IndoorNavNode(Node):
             log_level=self.get_parameter('log_level').value,
             launch_package=self.get_parameter('launch_package').value,
             launch_file=self.get_parameter('launch_file').value,
-            initial_pose_seeder=seeder)
+            initial_pose_seeder=seeder,
+            zenoh_client=bool(self.get_parameter('zenoh_client_mode').value))
         self.service = IndoorNavService(
             maps=FileMapRepository(self.get_parameter('maps_dir').value),
             localization=self._controller,

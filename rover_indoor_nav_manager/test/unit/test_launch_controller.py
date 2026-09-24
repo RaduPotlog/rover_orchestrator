@@ -8,6 +8,7 @@ import pytest
 
 from rover_indoor_nav_manager.domain.model import Pose2D
 from rover_indoor_nav_manager.infrastructure.launch_localization_controller import (
+    child_env,
     LaunchLocalizationController,
 )
 
@@ -65,3 +66,43 @@ def test_immediate_exit_is_reported(monkeypatch):
     monkeypatch.setattr(ctl, 'command', lambda *a, **k: [sys.executable, '-c', 'raise SystemExit(3)'])
     with pytest.raises(RuntimeError, match='code 3'):
         ctl.start_mapping()
+
+
+ZENOH = {'RMW_IMPLEMENTATION': 'rmw_zenoh_cpp', 'PATH': '/usr/bin'}
+
+
+def test_child_env_sets_client_mode():
+    env = child_env(ZENOH, zenoh_client=True)
+    assert env['ZENOH_CONFIG_OVERRIDE'] == 'mode="client"'
+    assert env['PATH'] == '/usr/bin'
+
+
+def test_child_env_appends_to_existing_override():
+    base = dict(ZENOH, ZENOH_CONFIG_OVERRIDE='connect/endpoints=["tcp/10.0.0.1:7447"]')
+    env = child_env(base, zenoh_client=True)
+    assert env['ZENOH_CONFIG_OVERRIDE'] == 'connect/endpoints=["tcp/10.0.0.1:7447"];mode="client"'
+    assert 'mode=' not in base['ZENOH_CONFIG_OVERRIDE']  # the caller's mapping is not modified
+
+
+@pytest.mark.parametrize('base, enabled', [
+    (ZENOH, False),
+    ({'RMW_IMPLEMENTATION': 'rmw_fastrtps_cpp'}, True),
+    ({}, True),
+])
+def test_child_env_unchanged(base, enabled):
+    assert child_env(base, zenoh_client=enabled) == base
+
+
+@pytest.mark.parametrize('enabled, expected', [(True, 'mode="client"'), (False, 'unset')])
+def test_child_launch_runs_with_client_override(monkeypatch, tmp_path, enabled, expected):
+    monkeypatch.setenv('RMW_IMPLEMENTATION', 'rmw_zenoh_cpp')
+    monkeypatch.delenv('ZENOH_CONFIG_OVERRIDE', raising=False)
+    out = tmp_path / 'override'
+    ctl = controller(zenoh_client=enabled)
+    monkeypatch.setattr(ctl, 'command', lambda *a, **k: [
+        sys.executable, '-c',
+        f'import os, time; open({str(out)!r}, "w").write('
+        'os.environ.get("ZENOH_CONFIG_OVERRIDE", "unset")); time.sleep(60)'])
+    ctl.start_mapping()
+    ctl.stop()
+    assert out.read_text() == expected

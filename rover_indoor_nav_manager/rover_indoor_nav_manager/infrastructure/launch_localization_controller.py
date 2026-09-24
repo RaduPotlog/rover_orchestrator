@@ -6,6 +6,11 @@
 One group at a time: slam_toolbox (+ map_saver) for mapping, or map_server + AMCL for
 localization. Exactly one of them may publish map -> odom, so the old group is stopped and
 reaped before the new one starts. Nav 2 itself (nav2_container) is never touched.
+
+Under rmw_zenoh the group runs as Zenoh clients (router link only). As peers, every process
+would hold a direct link to every other ROS process on the host, platform included, and
+stopping the group made those processes stall for seconds (EKF, LED frames, measured on the
+rover); as clients, only the router sees the links go.
 """
 
 import os
@@ -13,9 +18,23 @@ import signal
 import subprocess
 import threading
 import time
-from typing import List, Optional
+from typing import Dict, List, Mapping, Optional
 
 from ..domain.model import Pose2D
+
+ZENOH_CLIENT_OVERRIDE = 'mode="client"'
+
+
+def child_env(base: Mapping[str, str], zenoh_client: bool) -> Dict[str, str]:
+    """The environment for the child launch: `base`, plus Zenoh client mode when it applies."""
+    env = dict(base)
+    if zenoh_client and env.get('RMW_IMPLEMENTATION') == 'rmw_zenoh_cpp':
+        # rmw_zenoh applies the ';'-separated keys in order, so appending wins over any earlier
+        # mode in the override while keeping its other keys (e.g. connect/endpoints).
+        existing = env.get('ZENOH_CONFIG_OVERRIDE', '')
+        env['ZENOH_CONFIG_OVERRIDE'] = (
+            f'{existing};{ZENOH_CLIENT_OVERRIDE}' if existing else ZENOH_CLIENT_OVERRIDE)
+    return env
 
 
 class LaunchLocalizationController:
@@ -23,7 +42,8 @@ class LaunchLocalizationController:
     def __init__(self, logger, namespace: str, params_file: str, use_sim_time: bool,
                  log_level: str = 'info', launch_package: str = 'rover_navigation',
                  launch_file: str = 'indoor_localization.launch.py',
-                 stop_timeout: float = 15.0, initial_pose_seeder=None):
+                 stop_timeout: float = 15.0, initial_pose_seeder=None,
+                 zenoh_client: bool = True):
         self._logger = logger
         self._namespace = namespace
         self._params_file = params_file
@@ -35,6 +55,7 @@ class LaunchLocalizationController:
         self._lock = threading.Lock()
         # Publishes AMCL's initialpose (RosInitialPoseSeeder); None in process-only tests.
         self._seeder = initial_pose_seeder
+        self._zenoh_client = zenoh_client
 
     def command(self, mode: str, map_yaml: str = '', pose: Optional[Pose2D] = None) -> List[str]:
         cmd = ['ros2', 'launch', *self._launch,
@@ -91,7 +112,8 @@ class LaunchLocalizationController:
                 raise RuntimeError('A localization stack is already running.')
             self._logger.info('Starting: ' + ' '.join(cmd))
             self._process = subprocess.Popen(
-                cmd, start_new_session=True, stdin=subprocess.DEVNULL)
+                cmd, start_new_session=True, stdin=subprocess.DEVNULL,
+                env=child_env(os.environ, self._zenoh_client))
             process = self._process
         # Fail fast on an immediate crash (bad arguments, missing package).
         time.sleep(1.0)
