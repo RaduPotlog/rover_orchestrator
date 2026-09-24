@@ -109,6 +109,11 @@ if(BUILD_TESTING)
     ament_add_gtest(test_is_motion_locked test/unit/test_is_motion_locked.cpp)
     target_link_libraries(test_is_motion_locked is_motion_locked_bt_node)
 
+    # The lidar-health guard in the same trees. Its contract is also about defaults: a lidar
+    # never seen is fine unless require_present, a stale or ERROR/STALE status is not.
+    ament_add_gtest(test_is_lidar_healthy test/unit/test_is_lidar_healthy.cpp)
+    target_link_libraries(test_is_lidar_healthy is_lidar_healthy_bt_node)
+
     # Mechanically enforce that domain/ never grows a ROS or BehaviorTree dependency. Plain
     # CTest add_test (pass/fail via exit code) rather than ament_add_test, since the script
     # has no JUnit-XML result-file contract to satisfy.
@@ -119,6 +124,7 @@ endif()
 
 ament_export_dependencies(${DEPENDENCIES})
 ament_export_include_directories(include)
-ament_export_libraries(${plugin_libs})
+# plugin_libs are deliberately not exported: bt_navigator and the mission manager load them by
+# name through BT::SharedLibrary, and nothing links against them.
 
 ament_package()

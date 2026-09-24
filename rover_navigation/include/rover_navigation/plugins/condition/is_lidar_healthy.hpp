@@ -95,6 +95,9 @@ private:
   // asking for an rclcpp::Node makes BT::Any::convert throw at tree creation.
   nav2::LifecycleNode::SharedPtr node_;
   nav2::Subscription<DiagnosticArrayMsg>::SharedPtr diagnostics_sub_;
+  // Each instance spins its own callback group on its own thread, so tick() never spins and
+  // never waits. That costs one thread per instance - up to six on the rover (both navigate
+  // trees plus the mission tree) - which is deliberate, not an oversight.
   rclcpp::CallbackGroup::SharedPtr callback_group_;
   rclcpp::executors::SingleThreadedExecutor callback_group_executor_;
   std::thread callback_group_executor_thread_;
