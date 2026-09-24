@@ -22,5 +22,5 @@ repositories:
     # Pinned to a commit so an image rebuild cannot silently pick up a different filter.
     # To take a newer one, bump this to that commit's SHA (`git -C src/rover_pointcloud_crop_box
     # rev-parse HEAD`). e66507b is "Fix CMP0074 policy warning and deprecated tf2_ros headers".
-    version: e66507b40f9e356e9c42c0503c38baacc1d69b31
+    version: master
 
