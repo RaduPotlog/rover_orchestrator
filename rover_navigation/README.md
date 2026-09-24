@@ -50,7 +50,6 @@ When navigation runs on a different machine than the rover, both must share the 
   self-filter, so the two cannot drift apart.
 - `map/empty_world.yaml` + `map/empty_world.png` - default empty map, 50 x 50 m at
   0.1 m/px.
-- `map/rover_map_server.yaml` - a `map_server` parameter snippet, not a map.
 - `behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml` - tree used for
   `NavigateToPose`.
 - `behavior_trees/navigate_through_poses_w_replanning_and_recovery.xml` - tree used for
@@ -248,7 +247,9 @@ puts the map origin at the start pose, which is what makes the default
 `initial_pose 0,0,0` correct later. Then teleop slowly through the whole area, closing at
 least one loop. `map_autosaver_node` calls `map_saver` every 15 s and writes
 `<maps_dir>/map.yaml` + `<maps_dir>/map.pgm`. `maps_dir` is `/maps` unless bringup gets
-`maps_dir:=…`, so the commands below assume the default.
+`maps_dir:=…`, so the commands below assume the default. If `map_saver` is missing, fails
+the write, or never answers, the autosaver logs a warning and backs off exponentially,
+retrying at least every 16 periods.
 
 ```bash
 ros2 topic echo /rover/map --field info --once    # check it looks sane
@@ -396,7 +397,7 @@ The goal `frame_id` must match the mode: **`rover/odom`** with `localization_sou
   been seen, so that `ROVER_USE_LIDAR=false` operation keeps working; set
   `require_present="true"` in both tree XMLs on a rover that always carries a lidar.
 - **`plugin_lib_names` semantics.** `bt_navigator` is configured with
-  `plugin_lib_names: [is_motion_locked_bt_node]`, on the assumption that Nav 2 loads its
+  `plugin_lib_names: [is_motion_locked_bt_node, is_lidar_healthy_bt_node]`, on the assumption that Nav 2 loads its
   built-in BT nodes unconditionally from `nav2_behavior_tree/plugins_list.hpp` and treats
   this list as *additional*. If navigation instead fails at startup with unknown-node errors
   for stock nodes like `ComputePathToPose`, this Nav 2 build treats the list as an override:

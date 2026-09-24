@@ -17,6 +17,7 @@
 #include <chrono>
 #include <memory>
 #include <string>
+#include <utility>
 
 namespace rover_navigation::infrastructure
 {
@@ -36,7 +37,7 @@ Nav2MapSaverClient::Nav2MapSaverClient(
     client_ = node_->create_client<SaveMapSrv>(service_name);
 }
 
-bool Nav2MapSaverClient::save(const domain::MapSaveRequest & request)
+bool Nav2MapSaverClient::save(const domain::MapSaveRequest & request, SaveDoneCallback on_done)
 {
     const auto timeout =
         std::chrono::duration_cast<std::chrono::nanoseconds>(connection_timeout_);
@@ -59,21 +60,28 @@ bool Nav2MapSaverClient::save(const domain::MapSaveRequest & request)
 
     client_->async_send_request(
         srv_request,
-        [this, map_url = request.map_url](rclcpp::Client<SaveMapSrv>::SharedFuture future) {
-            responseCb(map_url, future);
+        [this, map_url = request.map_url, on_done = std::move(on_done)](
+            rclcpp::Client<SaveMapSrv>::SharedFuture future) {
+            responseCb(map_url, on_done, future);
         });
     return true;
 }
 
 void Nav2MapSaverClient::responseCb(
-    const std::string & map_url, rclcpp::Client<SaveMapSrv>::SharedFuture future)
+    const std::string & map_url, const SaveDoneCallback & on_done,
+    rclcpp::Client<SaveMapSrv>::SharedFuture future)
 {
-    if (!future.get()->result) {
-        RCLCPP_WARN_STREAM(
-            node_->get_logger(),
-            "map_saver failed to write the map to '" << map_url
-                                                     << "'. Check that its directory exists and "
-                                                        "is writable.");
+    const bool written = future.get()->result;
+
+    if (!written) {
+        RCLCPP_WARN_STREAM_THROTTLE(
+            node_->get_logger(), *node_->get_clock(), 10000,
+            "map_saver failed to write the map to '"
+                << map_url << "'; backing off. Check that its directory exists and is writable.");
+    }
+
+    if (on_done) {
+        on_done(written);
     }
 }
 

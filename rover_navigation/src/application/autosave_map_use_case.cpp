@@ -31,19 +31,54 @@ AutosaveMapUseCase::AutosaveMapUseCase(
     }
 }
 
+constexpr int AutosaveMapUseCase::kMaxTicksInFlight;
+
 AutosaveOutcome AutosaveMapUseCase::execute()
 {
+    if (in_flight_) {
+        if (++ticks_in_flight_ < kMaxTicksInFlight) {
+            return AutosaveOutcome::kSkippedInFlight;
+        }
+
+        in_flight_ = false;
+        policy_.recordFailure();
+        return AutosaveOutcome::kSaveTimedOut;
+    }
+
     if (!policy_.shouldSave()) {
         return AutosaveOutcome::kSkippedBackingOff;
     }
 
-    if (!map_saver_->save(request_)) {
+    // Marked in flight before dispatching, in case the saver answers from inside save().
+    const unsigned int generation = ++generation_;
+    in_flight_ = true;
+    ticks_in_flight_ = 0;
+
+    const bool dispatched = map_saver_->save(
+        request_, [this, generation](bool written) { onSaveDone(generation, written); });
+
+    if (!dispatched) {
+        in_flight_ = false;
         policy_.recordFailure();
         return AutosaveOutcome::kSaverUnavailable;
     }
 
-    policy_.recordSuccess();
-    return AutosaveOutcome::kSaved;
+    return AutosaveOutcome::kRequested;
+}
+
+void AutosaveMapUseCase::onSaveDone(unsigned int generation, bool written)
+{
+    if (!in_flight_ || generation != generation_) {
+        return;
+    }
+
+    in_flight_ = false;
+
+    if (written) {
+        policy_.recordSuccess();
+    } else {
+        policy_.recordFailure();
+    }
 }
 
 }  // namespace rover_navigation::application

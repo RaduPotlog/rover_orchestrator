@@ -128,6 +128,12 @@ if(BUILD_TESTING)
                     ENV ${ISOLATED_ROS_TEST_ENV})
     target_link_libraries(test_is_lidar_healthy is_lidar_healthy_bt_node)
 
+    # The map saver adapter against a stand-in SaveMap service. A failed write only shows up in
+    # the asynchronous reply, and the autosaver's backoff depends on that reply reaching it.
+    ament_add_gtest(test_nav2_map_saver_client test/integration/test_nav2_map_saver_client.cpp
+                    ENV ${ISOLATED_ROS_TEST_ENV})
+    target_link_libraries(test_nav2_map_saver_client ${PROJECT_NAME}_ros)
+
     # Mechanically enforce that domain/ never grows a ROS or BehaviorTree dependency. Plain
     # CTest add_test (pass/fail via exit code) rather than ament_add_test, since the script
     # has no JUnit-XML result-file contract to satisfy.
