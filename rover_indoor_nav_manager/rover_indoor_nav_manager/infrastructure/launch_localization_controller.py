@@ -135,7 +135,9 @@ class LaunchLocalizationController:
                 cmd, start_new_session=True, stdin=subprocess.DEVNULL,
                 env=child_env(os.environ, self._zenoh_client))
             process = self._process
-        # Fail fast on an immediate crash (bad arguments, missing package).
+        # Fail fast on an immediate crash (bad arguments, missing package). This blocks for a
+        # second, which is fine only because every caller runs on IndoorNavNode's worker
+        # thread. Calling it straight from an executor callback would stall that thread.
         time.sleep(1.0)
         if process.poll() is not None:
             raise RuntimeError(f'ros2 launch exited with code {process.returncode}')

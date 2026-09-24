@@ -106,6 +106,11 @@ imports ROS or an outer layer.
 colcon test --packages-select rover_indoor_nav_manager
 ```
 
-The tests are pytest with fakes for every port: domain rules, every use case, the file
+The unit tests are pytest with fakes for every port: domain rules, every use case, the file
 repository on a temp dir, the launch command line, and process-group start/stop. They need no
 ROS graph.
+
+`test/integration/test_indoor_nav_node.py` runs the real node on an rclpy graph with
+`auto_start` off, so no SLAM/AMCL launch is spawned. It calls the services the drive UI uses
+and checks that a late subscriber still gets the latched `maps` list. The test is pinned to
+FastDDS on localhost, so it needs neither a Zenoh router nor the rover.

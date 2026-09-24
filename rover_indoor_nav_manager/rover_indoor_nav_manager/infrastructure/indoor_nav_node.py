@@ -40,6 +40,17 @@ def ns_frame(namespace: str, frame: str) -> str:
 
 
 class IndoorNavNode(Node):
+    """Owns the swappable SLAM/AMCL launch for localization_source:=indoor.
+
+    A plain node, not a lifecycle one, although it owns a resource (the child launch's
+    process group). Its whole job is switching that stack between mapping and localization.
+    Being "inactive" would mean a rover with no localization at all, which no operator flow
+    asks for. The only transition that matters is teardown, and that is explicit:
+    presentation/main.py always calls shutdown() before the node is destroyed, which stops the
+    child launch (SIGINT -> SIGTERM -> SIGKILL on its group). bringup.launch.py starts it
+    unmanaged, outside Nav 2's lifecycle managers, because the stack it controls is not one of
+    theirs either.
+    """
 
     def __init__(self):
         super().__init__('indoor_nav_manager')
