@@ -490,8 +490,11 @@
       # Relative on purpose: resolves to /<namespace>/map inside the pushed namespace, the
       # same latched topic global_costmap's static_layer subscribes to.
       map_topic: map
-      # The map is static and never republished, so skip rebuilding the likelihood field.
-      first_map_only: true
+      # false: in localization_source:=indoor, rover_indoor_nav_manager switches saved maps by
+      # asking map_server to load another one, which republishes `map`; with true AMCL would
+      # keep localizing on the old map. With amcl the map is never republished, so this costs
+      # nothing there. A new map only replaces AMCL's map; the manager re-seeds the pose.
+      first_map_only: false
 
       robot_model_type: nav2_amcl::DifferentialMotionModel
 

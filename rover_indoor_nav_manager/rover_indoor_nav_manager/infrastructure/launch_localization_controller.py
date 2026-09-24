@@ -6,6 +6,8 @@
 One group at a time: slam_toolbox (+ map_saver) for mapping, or map_server + AMCL for
 localization. Exactly one of them may publish map -> odom, so the old group is stopped and
 reaped before the new one starts. Nav 2 itself (nav2_container) is never touched.
+Switching between saved maps while localizing restarts nothing: switch_map() hands map_server
+the new yaml and re-seeds AMCL.
 
 Under rmw_zenoh the group runs as Zenoh clients (router link only). As peers, every process
 would hold a direct link to every other ROS process on the host, platform included, and
@@ -13,6 +15,7 @@ stopping the group made those processes stall for seconds (EKF, LED frames, meas
 rover); as clients, only the router sees the links go.
 """
 
+import math
 import os
 import signal
 import subprocess
@@ -23,6 +26,11 @@ from typing import Dict, List, Mapping, Optional
 from ..domain.model import Pose2D
 
 ZENOH_CLIENT_OVERRIDE = 'mode="client"'
+
+# AMCL's own default start spread (standard deviations), used for an in-place map switch the
+# same way a fresh AMCL uses it with the launch's initial_pose.
+AMCL_DEFAULT_SIGMA_XY = 0.5
+AMCL_DEFAULT_SIGMA_YAW = math.pi / 12
 
 
 def child_env(base: Mapping[str, str], zenoh_client: bool) -> Dict[str, str]:
@@ -43,7 +51,7 @@ class LaunchLocalizationController:
                  log_level: str = 'info', launch_package: str = 'rover_navigation',
                  launch_file: str = 'indoor_localization.launch.py',
                  stop_timeout: float = 15.0, initial_pose_seeder=None,
-                 zenoh_client: bool = True):
+                 zenoh_client: bool = True, map_loader=None):
         self._logger = logger
         self._namespace = namespace
         self._params_file = params_file
@@ -56,6 +64,8 @@ class LaunchLocalizationController:
         # Publishes AMCL's initialpose (RosInitialPoseSeeder); None in process-only tests.
         self._seeder = initial_pose_seeder
         self._zenoh_client = zenoh_client
+        # Calls map_server's load_map (RosMapLoader); None in process-only tests.
+        self._map_loader = map_loader
 
     def command(self, mode: str, map_yaml: str = '', pose: Optional[Pose2D] = None) -> List[str]:
         cmd = ['ros2', 'launch', *self._launch,
@@ -75,6 +85,16 @@ class LaunchLocalizationController:
 
     def start_localization(self, map_yaml: str, initial_pose: Pose2D) -> None:
         self._start(self.command('localization', map_yaml, initial_pose))
+
+    def switch_map(self, map_yaml: str, initial_pose: Pose2D) -> None:
+        if self._map_loader is None or self._seeder is None:
+            raise RuntimeError('no map loader configured')
+        if not self.running():
+            raise RuntimeError('localization is not running')
+        self._map_loader.load(map_yaml)
+        # AMCL only swaps its map on a new /map; its particles stay where the old map put them
+        # until an initialpose arrives, so the seed is not optional here.
+        self._seeder.seed(initial_pose, AMCL_DEFAULT_SIGMA_XY, AMCL_DEFAULT_SIGMA_YAW)
 
     def widen_initial_estimate(self, pose: Pose2D, sigma_xy: float, sigma_yaw: float) -> None:
         if self._seeder is None:

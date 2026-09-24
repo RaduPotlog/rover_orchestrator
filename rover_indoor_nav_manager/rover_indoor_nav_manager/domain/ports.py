@@ -67,6 +67,15 @@ class LocalizationController(ABC):
     def start_localization(self, map_yaml: str, initial_pose: Pose2D) -> None: ...
 
     @abstractmethod
+    def switch_map(self, map_yaml: str, initial_pose: Pose2D) -> None:
+        """Replace the map under the running map_server + AMCL, without restarting them.
+
+        Seeds AMCL at `initial_pose` with its default spread, like start_localization().
+        Raises if localization is not running or the map could not be loaded; the caller
+        then falls back to stop() + start_localization().
+        """
+
+    @abstractmethod
     def stop(self) -> None: ...
 
     @abstractmethod

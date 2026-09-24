@@ -149,10 +149,24 @@ class IndoorNavService:
                 pose, source = initial_pose, SeedSource.EXPLICIT
             else:
                 pose, source = self._seed_pose(name)
+            # Already localizing: swap the map under the running map_server + AMCL. Stopping
+            # the stack is slow and disturbs every other ROS process, so it is only the
+            # fallback here.
+            in_place = (self._state.mode == LocalizationMode.LOCALIZATION
+                        and self._localization.running())
+            map_yaml = self._maps.map_yaml_path(name)
             self._switching(f"Loading map '{name}'...")
+            fallback_note = ''
             try:
-                self._localization.stop()
-                self._localization.start_localization(self._maps.map_yaml_path(name), pose)
+                if in_place:
+                    try:
+                        self._localization.switch_map(map_yaml, pose)
+                    except Exception as error:  # noqa: BLE001 - restarting still works
+                        fallback_note = f' (in-place switch failed: {error}; restarted AMCL)'
+                        in_place = False
+                if not in_place:
+                    self._localization.stop()
+                    self._localization.start_localization(map_yaml, pose)
             except Exception as error:  # noqa: BLE001
                 self._set_state(LocalizationState(message=f'Could not start AMCL: {error}'))
                 raise
@@ -163,7 +177,8 @@ class IndoorNavService:
             if source == SeedSource.LAST_POSE:
                 message = self._widen(pose) or message
             self._set_state(LocalizationState(
-                mode=LocalizationMode.LOCALIZATION, map_name=name, message=message))
+                mode=LocalizationMode.LOCALIZATION, map_name=name,
+                message=message + fallback_note))
             self._publish_maps()
 
     def delete_map(self, name: str) -> None:

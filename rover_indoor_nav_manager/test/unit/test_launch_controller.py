@@ -106,3 +106,43 @@ def test_child_launch_runs_with_client_override(monkeypatch, tmp_path, enabled, 
     ctl.start_mapping()
     ctl.stop()
     assert out.read_text() == expected
+
+
+class Recorder:
+    def __init__(self, error=None):
+        self.calls = []
+        self.error = error
+
+    def load(self, map_yaml):
+        if self.error:
+            raise RuntimeError(self.error)
+        self.calls.append(map_yaml)
+
+    def seed(self, pose, sigma_xy, sigma_yaw):
+        self.calls.append((pose, sigma_xy, sigma_yaw))
+
+    def cancel(self):
+        pass
+
+
+def test_switch_map_loads_then_seeds_with_amcl_default_spread(monkeypatch):
+    loader, seeder = Recorder(), Recorder()
+    ctl = controller(map_loader=loader, initial_pose_seeder=seeder)
+    monkeypatch.setattr(ctl, 'running', lambda: True)
+    ctl.switch_map('/maps/hall/map.yaml', Pose2D(1.0, 2.0, 0.3))
+    assert loader.calls == ['/maps/hall/map.yaml']
+    assert seeder.calls == [(Pose2D(1.0, 2.0, 0.3), 0.5, pytest.approx(0.2618, abs=1e-4))]
+
+
+def test_switch_map_refuses_without_a_running_stack_or_loader(monkeypatch):
+    with pytest.raises(RuntimeError, match='no map loader'):
+        controller().switch_map('/m.yaml', Pose2D(0, 0, 0))
+    seeder = Recorder()
+    ctl = controller(map_loader=Recorder(), initial_pose_seeder=seeder)
+    with pytest.raises(RuntimeError, match='not running'):
+        ctl.switch_map('/m.yaml', Pose2D(0, 0, 0))
+    monkeypatch.setattr(ctl, 'running', lambda: True)
+    ctl._map_loader = Recorder(error='map_server could not load /m.yaml (result 1)')
+    with pytest.raises(RuntimeError, match='result 1'):
+        ctl.switch_map('/m.yaml', Pose2D(0, 0, 0))
+    assert seeder.calls == []  # no seed for a map AMCL never got

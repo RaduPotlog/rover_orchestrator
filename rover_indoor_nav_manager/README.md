@@ -15,9 +15,14 @@ side of the Clearpath IndoorNav-style **Facility** and **Places** features in
 | `MAPPING` | slam_toolbox + map_saver (`slam_launch.py`) | slam_toolbox |
 | `LOCALIZATION` | map_server + AMCL on a saved map (`localization.launch.py`, uncomposed) | AMCL |
 
-A switch stops and reaps the old group (SIGINT → SIGTERM → SIGKILL on the process group)
-before starting the new one, so the two never publish `map → odom` at the same time.
-`nav2_container` is never touched.
+A switch between modes stops and reaps the old group (SIGINT → SIGTERM → SIGKILL on the process
+group) before starting the new one, so the two never publish `map → odom` at the same time.
+`nav2_container` is never touched. The group runs as Zenoh clients (`zenoh_client_mode`), so
+stopping it cannot stall the other containers' processes through direct peer links.
+
+Loading another saved map while already localizing restarts nothing: the manager calls
+map_server's `load_map` (which republishes `map`; AMCL has `first_map_only: false`) and
+re-seeds AMCL. If that fails, it falls back to restarting the group.
 
 ## Interfaces (all relative to the rover namespace)
 
@@ -86,6 +91,8 @@ imports ROS or an outer layer.
 | `localization_params_file` | *(required)* | bringup's namespaced `rover_nav_params.yaml` |
 | `maps_dir` | `/maps` | The `rover-maps` volume in rover-a1-orchestrator |
 | `save_map_timeout` | `5.0` | s, map_saver |
+| `load_map_timeout` | `5.0` | s, map_server `load_map` (in-place map switch) |
+| `zenoh_client_mode` | `true` | Run the child launch as Zenoh clients (rmw_zenoh only) |
 | `pose_record_period` | `5.0` | s, backstop for the stop-triggered save |
 | `motion_topic` | `odometry/wheels` | Speed source for detecting a stop |
 | `stop_linear_threshold` / `stop_angular_threshold` / `stop_hold_time` | `0.03` / `0.05` / `0.5` | m/s, rad/s, s |

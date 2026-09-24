@@ -1,7 +1,7 @@
 # Copyright 2026 Rover A1 contributors
 # Licensed under the Apache License, Version 2.0.
 
-"""ROS 2 adapters: map_saver client, TF pose source, latched state publishers."""
+"""ROS 2 adapters: map_saver / map_server clients, TF pose source, latched state publishers."""
 
 import math
 import threading
@@ -9,7 +9,7 @@ import time
 
 from builtin_interfaces.msg import Time
 from geometry_msgs.msg import PoseWithCovarianceStamped
-from nav2_msgs.srv import SaveMap
+from nav2_msgs.srv import LoadMap, SaveMap
 from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
@@ -54,6 +54,27 @@ class RosMapSaver(MapSaver):
             raise RuntimeError('map_saver did not answer')
         if not future.result().result:
             raise RuntimeError('map_saver reported failure (no map received yet?)')
+
+
+class RosMapLoader:
+    """Calls nav2 map_server's load_map, which republishes the new map on the latched topic."""
+
+    def __init__(self, node: Node, service: str, timeout: float, callback_group=None):
+        self._client = node.create_client(LoadMap, service, callback_group=callback_group)
+        self._timeout = timeout
+        self._service = service
+
+    def load(self, map_yaml: str) -> None:
+        if not self._client.wait_for_service(timeout_sec=self._timeout):
+            raise RuntimeError(f'{self._service} is not available')
+        done = threading.Event()
+        future = self._client.call_async(LoadMap.Request(map_url=map_yaml))
+        future.add_done_callback(lambda _: done.set())
+        if not done.wait(self._timeout + 5.0):
+            raise RuntimeError('map_server did not answer')
+        result = future.result().result
+        if result != LoadMap.Response.RESULT_SUCCESS:
+            raise RuntimeError(f'map_server could not load {map_yaml} (result {result})')
 
 
 class TfPoseSource(RobotPoseSource):

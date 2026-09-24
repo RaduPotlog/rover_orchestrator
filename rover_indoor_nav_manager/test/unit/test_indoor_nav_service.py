@@ -185,7 +185,7 @@ def test_reloading_the_same_map_starts_from_the_freshest_pose():
     svc.load_map('lab')
     robot.pose = Pose2D(5, 6, 0.2)
     svc.load_map('lab')
-    assert loc.calls[-1] == ('localization', '/maps/lab/map.yaml', Pose2D(5, 6, 0.2))
+    assert loc.calls[-1] == ('switch', '/maps/lab/map.yaml', Pose2D(5, 6, 0.2))
 
 
 def test_only_a_remembered_pose_gets_the_wider_spread():
@@ -223,3 +223,47 @@ def test_widen_failure_keeps_localization_and_says_so():
     svc.startup()
     assert svc.state.mode == LocalizationMode.LOCALIZATION
     assert 'could not widen' in svc.state.message
+
+
+def test_switching_saved_maps_while_localized_restarts_nothing():
+    svc, maps, loc, _, robot, obs = make(names=['lab', 'hall'], pose=Pose2D(1, 1, 0))
+    maps.maps['hall']['pose'] = Pose2D(8, 9, 0.5)
+    svc.load_map('lab')
+    svc.save_place('Dock', Pose2D(0, 0))
+    del loc.calls[:]
+    svc.load_map('hall')
+    assert loc.calls == [('switch', '/maps/hall/map.yaml', Pose2D(8, 9, 0.5))]
+    # A remembered pose still gets the wider search, as after a restart.
+    assert loc.widened[-1][0] == Pose2D(8, 9, 0.5)
+    assert svc.state.mode == LocalizationMode.LOCALIZATION
+    assert svc.state.map_name == 'hall'
+    assert maps.active == 'hall'
+    assert svc.places() == []
+    assert obs.maps[-1] == (['hall', 'lab'], 'hall')
+    assert [s.mode for s in obs.states[-2:]] == [LocalizationMode.SWITCHING,
+                                                  LocalizationMode.LOCALIZATION]
+
+
+def test_failed_in_place_switch_falls_back_to_a_restart():
+    svc, _, loc, _, _, _ = make(names=['lab', 'hall'])
+    svc.load_map('lab')
+    loc.switch_error = 'map_server did not answer'
+    del loc.calls[:]
+    svc.load_map('hall', Pose2D(2, 2, 0))
+    assert loc.calls == [('stop',), ('localization', '/maps/hall/map.yaml', Pose2D(2, 2, 0))]
+    assert svc.state.mode == LocalizationMode.LOCALIZATION
+    assert svc.state.map_name == 'hall'
+    assert 'in-place switch failed: map_server did not answer' in svc.state.message
+
+
+@pytest.mark.parametrize('before', ['mapping', 'dead'])
+def test_load_restarts_when_not_localizing(before):
+    svc, _, loc, _, _, _ = make(names=['lab', 'hall'])
+    if before == 'mapping':
+        svc.start_mapping()
+    else:
+        svc.load_map('lab')
+        loc.alive = False  # AMCL crashed; check_health has not run yet
+    del loc.calls[:]
+    svc.load_map('hall', Pose2D(1, 0, 0))
+    assert loc.calls == [('stop',), ('localization', '/maps/hall/map.yaml', Pose2D(1, 0, 0))]

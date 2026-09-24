@@ -23,6 +23,7 @@ from .launch_localization_controller import LaunchLocalizationController
 from .ros_adapters import (
     place_to_msg,
     RosInitialPoseSeeder,
+    RosMapLoader,
     RosMapSaver,
     RosObserver,
     TfPoseSource,
@@ -48,6 +49,8 @@ class IndoorNavNode(Node):
         self.declare_parameter('launch_package', 'rover_navigation')
         self.declare_parameter('launch_file', 'indoor_localization.launch.py')
         self.declare_parameter('save_map_timeout', 5.0)
+        # map_server's load_map, for switching saved maps without restarting the stack.
+        self.declare_parameter('load_map_timeout', 5.0)
         self.declare_parameter('pose_record_period', 5.0)
         self.declare_parameter('auto_start', True)
         # Run the swappable SLAM/AMCL launch as Zenoh clients, so stopping it cannot stall
@@ -84,7 +87,9 @@ class IndoorNavNode(Node):
             launch_package=self.get_parameter('launch_package').value,
             launch_file=self.get_parameter('launch_file').value,
             initial_pose_seeder=seeder,
-            zenoh_client=bool(self.get_parameter('zenoh_client_mode').value))
+            zenoh_client=bool(self.get_parameter('zenoh_client_mode').value),
+            map_loader=RosMapLoader(self, 'map_server/load_map',
+                                    self.get_parameter('load_map_timeout').value, io_group))
         self.service = IndoorNavService(
             maps=FileMapRepository(self.get_parameter('maps_dir').value),
             localization=self._controller,
