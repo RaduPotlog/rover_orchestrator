@@ -21,7 +21,7 @@ source install/setup.bash
 `nav2_smac_planner` included, comes from apt through rosdep. The file pins:
 
 - [`rover_pointcloud_crop_box`](https://github.com/RaduPotlog/rover_pointcloud_crop_box), the
-  self-filter `rover_navigation` uses on its pointcloud path. Only used with
+  self-filter `rover_navigation` uses on its pointcloud path, pinned to a commit SHA. Only used with
   `observation_topic_type:=pointcloud`; the default laserscan path consumes
   `rover_rs16_lidar`'s `<namespace>/scan` directly.
 
