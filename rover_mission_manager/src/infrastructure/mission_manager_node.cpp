@@ -25,6 +25,7 @@
 #include <vector>
 
 #include <behaviortree_cpp/utils/shared_library.h>
+#include <lifecycle_msgs/msg/state.hpp>
 
 #include "rover_mission_manager/domain/mission.hpp"
 #include "rover_mission_manager/domain/mission_policy.hpp"
@@ -85,13 +86,24 @@ void MissionManagerNode::initialize()
     // listed in ros_plugin_libs) look the node handle up on the blackboard under "node" and
     // expect a nav2::LifecycleNode, as bt_navigator provides. Handing them this rclcpp::Node
     // made BT::Any::convert throw and the manager die at startup. The leaves spin their own
-    // callback groups, so the helper node needs no executor of its own. Global arguments are
-    // off so the launch file's `__node:=mission_manager` remap does not rename it too.
+    // callback groups, so the helper node is deliberately left off any executor. Global
+    // arguments are off so the launch file's `__node:=mission_manager` remap does not rename it
+    // too.
     bt_node_ = std::make_shared<nav2::LifecycleNode>(
         std::string(this->get_name()) + "_bt", this->get_namespace(),
         rclcpp::NodeOptions()
             .use_global_arguments(false)
             .parameter_overrides({this->get_parameter("use_sim_time")}));
+
+    // bt_navigator hands its plugins an ACTIVE node. Leaves that create lifecycle publishers
+    // (nav2::LifecycleNode::create_publisher) only publish once the node is active, so bring
+    // this one up the same way before any leaf is constructed.
+    using lifecycle_msgs::msg::State;
+    if (bt_node_->configure().id() != State::PRIMARY_STATE_INACTIVE ||
+        bt_node_->activate().id() != State::PRIMARY_STATE_ACTIVE)
+    {
+        throw std::runtime_error("Failed to activate the behavior tree helper node.");
+    }
 
     mission_tree_runner_->initialize(factory_, [this](BT::Blackboard::Ptr blackboard) {
         blackboard->set<nav2::LifecycleNode::SharedPtr>("node", bt_node_);

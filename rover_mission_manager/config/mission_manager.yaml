@@ -6,7 +6,10 @@
       bt_server_port: 4444
 
       # Plain BehaviorTree.CPP plugins. is_motion_locked_bt_node is built by rover_navigation
-      # and installed into lib/, where BT::SharedLibrary finds it by name.
+      # and installed into lib/, where BT::SharedLibrary finds it by name. Every leaf used in
+      # behavior_trees/rover_mission.xml must come from a library listed here or in
+      # ros_plugin_libs, or createTree() throws at startup; test_mission_manager_initialize
+      # builds the tree from this file to catch that before it reaches the rover.
       plugin_libs:
         - is_motion_locked_bt_node
 

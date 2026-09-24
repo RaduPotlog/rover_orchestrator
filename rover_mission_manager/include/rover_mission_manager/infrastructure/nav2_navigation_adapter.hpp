@@ -19,6 +19,7 @@
 #include <chrono>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 
 #include <nav2_msgs/action/navigate_to_pose.hpp>
@@ -43,7 +44,7 @@ public:
         std::string goal_frame_id,
         std::chrono::duration<double> server_timeout);
 
-    bool goTo(const domain::Waypoint & waypoint) override;
+    domain::ports::DispatchResult goTo(const domain::Waypoint & waypoint) override;
     void cancel() override;
     domain::ports::NavigationResult result() const override;
 
@@ -54,7 +55,11 @@ private:
     rclcpp::Node * node_;
     rclcpp_action::Client<NavigateToPose>::SharedPtr client_;
     std::string goal_frame_id_;
+    // Grace period for the action server to come up before goTo() reports kUnreachable.
     std::chrono::duration<double> server_timeout_;
+    // When goTo() first found the server down; reset by a dispatch or a cancel. Only touched
+    // from the manager's timer thread.
+    std::optional<std::chrono::steady_clock::time_point> unavailable_since_;
 
     // Written from action-client callbacks, read from the manager's timer thread.
     std::atomic<domain::ports::NavigationResult> result_;

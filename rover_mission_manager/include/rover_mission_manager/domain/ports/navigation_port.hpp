@@ -29,6 +29,14 @@ enum class NavigationResult
     kIdle,      ///< Nothing in flight.
 };
 
+/** @brief What goTo() did with the waypoint. */
+enum class DispatchResult
+{
+    kDispatched,   ///< The goal is on its way; poll result() for the outcome.
+    kNotReady,     ///< The navigator is not up yet; call goTo() again on a later tick.
+    kUnreachable,  ///< The navigator stayed down past its grace period.
+};
+
 /**
  * @brief Outbound port for driving the rover to a pose.
  *
@@ -43,9 +51,11 @@ public:
 
     /**
      * @brief Start driving to a waypoint, replacing any goal in flight.
-     * @return false when the goal could not be dispatched (navigator unreachable).
+     *
+     * Never waits for the navigator: while it is not up yet this returns kNotReady, and only
+     * once it has stayed down past the adapter's grace period kUnreachable.
      */
-    virtual bool goTo(const Waypoint & waypoint) = 0;
+    virtual DispatchResult goTo(const Waypoint & waypoint) = 0;
 
     /** @brief Abandon the goal in flight, if any. */
     virtual void cancel() = 0;

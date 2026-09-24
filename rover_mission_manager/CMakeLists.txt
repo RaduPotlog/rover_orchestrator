@@ -11,6 +11,7 @@ set(DEPENDENCIES
     diagnostic_msgs
     generate_parameter_library
     geometry_msgs
+    lifecycle_msgs
     nav2_msgs
     nav2_ros_common
     rclcpp
@@ -56,6 +57,7 @@ target_link_libraries(${PROJECT_NAME}_ros
     ${behaviortree_cpp_TARGETS}
     ${diagnostic_msgs_TARGETS}
     ${geometry_msgs_TARGETS}
+    ${lifecycle_msgs_TARGETS}
     ${nav2_msgs_TARGETS}
     ${nav2_ros_common_TARGETS}
     ${rclcpp_TARGETS}
@@ -91,6 +93,16 @@ if(BUILD_TESTING)
 
     ament_add_gtest(test_mission_request test/unit/test_mission_request.cpp)
     target_link_libraries(test_mission_request ${PROJECT_NAME}_ros)
+
+    # Builds the node from the shipped config and tree. is_motion_locked_bt_node comes from
+    # rover_navigation's install/lib, which colcon puts on the library path for its dependents.
+    ament_add_gtest(test_mission_manager_initialize
+                    test/integration/test_mission_manager_initialize.cpp
+                    TIMEOUT 60)
+    target_compile_definitions(test_mission_manager_initialize PRIVATE
+        ROVER_MISSION_MANAGER_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/config/mission_manager.yaml"
+        ROVER_MISSION_MANAGER_TREE="${CMAKE_CURRENT_SOURCE_DIR}/behavior_trees/rover_mission.xml")
+    target_link_libraries(test_mission_manager_initialize ${PROJECT_NAME}_ros)
 
     # Mechanically enforce that domain/ never grows a ROS or BehaviorTree dependency.
     add_test(

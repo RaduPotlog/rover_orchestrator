@@ -22,6 +22,7 @@
 namespace rover_mission_manager::infrastructure
 {
 
+using domain::ports::DispatchResult;
 using domain::ports::NavigationResult;
 
 Nav2NavigationAdapter::Nav2NavigationAdapter(
@@ -37,16 +38,33 @@ Nav2NavigationAdapter::Nav2NavigationAdapter(
     client_ = rclcpp_action::create_client<NavigateToPose>(node_, action_name);
 }
 
-bool Nav2NavigationAdapter::goTo(const domain::Waypoint & waypoint)
+DispatchResult Nav2NavigationAdapter::goTo(const domain::Waypoint & waypoint)
 {
-    const auto timeout = std::chrono::duration_cast<std::chrono::nanoseconds>(server_timeout_);
+    // Called from the manager's timer, which also ticks the tree and serves this node's
+    // subscriptions, so it never waits for the server: it reports kNotReady and the use case
+    // retries on the next tick until the grace period runs out.
+    if (!client_->action_server_is_ready()) {
+        const auto now = std::chrono::steady_clock::now();
 
-    if (!client_->wait_for_action_server(timeout)) {
-        RCLCPP_WARN_THROTTLE(
+        if (!unavailable_since_) {
+            unavailable_since_ = now;
+        }
+
+        if (now - *unavailable_since_ >= server_timeout_) {
+            RCLCPP_WARN(
+                node_->get_logger(), "navigate_to_pose action server unavailable for %.1f s.",
+                server_timeout_.count());
+            unavailable_since_.reset();
+            return DispatchResult::kUnreachable;
+        }
+
+        RCLCPP_INFO_THROTTLE(
             node_->get_logger(), *node_->get_clock(), 5000,
-            "navigate_to_pose action server unavailable.");
-        return false;
+            "Waiting for the navigate_to_pose action server.");
+        return DispatchResult::kNotReady;
     }
+
+    unavailable_since_.reset();
 
     NavigateToPose::Goal goal;
     goal.pose.header.frame_id = goal_frame_id_;
@@ -65,7 +83,7 @@ bool Nav2NavigationAdapter::goTo(const domain::Waypoint & waypoint)
     result_ = NavigationResult::kPending;
     client_->async_send_goal(goal, options);
 
-    return true;
+    return DispatchResult::kDispatched;
 }
 
 void Nav2NavigationAdapter::goalResponseCb(const GoalHandle::SharedPtr & goal_handle)
@@ -119,6 +137,7 @@ void Nav2NavigationAdapter::cancel()
         client_->async_cancel_goal(handle);
     }
 
+    unavailable_since_.reset();
     result_ = NavigationResult::kIdle;
 }
 

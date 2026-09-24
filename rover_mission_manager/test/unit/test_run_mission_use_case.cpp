@@ -26,6 +26,7 @@ using rover_mission_manager::domain::MissionPolicy;
 using rover_mission_manager::domain::MissionState;
 using rover_mission_manager::domain::RoverConditions;
 using rover_mission_manager::domain::Waypoint;
+using rover_mission_manager::domain::ports::DispatchResult;
 using rover_mission_manager::domain::ports::MissionStatusPublisherPort;
 using rover_mission_manager::domain::ports::NavigationPort;
 using rover_mission_manager::domain::ports::NavigationResult;
@@ -36,20 +37,20 @@ namespace
 class FakeNavigation : public NavigationPort
 {
 public:
-    bool reachable = true;
+    DispatchResult dispatch = DispatchResult::kDispatched;
     NavigationResult next_result = NavigationResult::kIdle;
     std::vector<Waypoint> dispatched;
     int cancels = 0;
 
-    bool goTo(const Waypoint & waypoint) override
+    DispatchResult goTo(const Waypoint & waypoint) override
     {
-        if (!reachable) {
-            return false;
+        if (dispatch != DispatchResult::kDispatched) {
+            return dispatch;
         }
 
         dispatched.push_back(waypoint);
         next_result = NavigationResult::kPending;
-        return true;
+        return DispatchResult::kDispatched;
     }
 
     void cancel() override
@@ -174,13 +175,35 @@ TEST(RunMissionUseCaseTest, ResumesTheSameWaypointAfterAHold)
 TEST(RunMissionUseCaseTest, FailsWhenTheNavigatorIsUnreachable)
 {
     Fixture f;
-    f.navigation->reachable = false;
+    f.navigation->dispatch = DispatchResult::kUnreachable;
     f.acceptTwoWaypointMission();
 
     f.use_case.tick(unlocked());
 
     EXPECT_EQ(f.use_case.mission().state(), MissionState::kFailed);
     EXPECT_EQ(f.use_case.mission().failureReason(), "navigator unreachable");
+}
+
+// The adapter reports kNotReady while Nav 2 is still coming up, instead of blocking the manager's
+// timer in wait_for_action_server(). The mission must keep running and dispatch once it is up.
+TEST(RunMissionUseCaseTest, RetriesWhileTheNavigatorIsNotReady)
+{
+    Fixture f;
+    f.navigation->dispatch = DispatchResult::kNotReady;
+    f.acceptTwoWaypointMission();
+
+    f.use_case.tick(unlocked());
+    f.use_case.tick(unlocked());
+
+    EXPECT_EQ(f.use_case.mission().state(), MissionState::kRunning);
+    EXPECT_TRUE(f.navigation->dispatched.empty());
+
+    f.navigation->dispatch = DispatchResult::kDispatched;
+    f.use_case.tick(unlocked());
+
+    EXPECT_EQ(f.use_case.mission().state(), MissionState::kRunning);
+    ASSERT_EQ(f.navigation->dispatched.size(), 1u);
+    EXPECT_DOUBLE_EQ(f.navigation->dispatched[0].x, 1.0);
 }
 
 TEST(RunMissionUseCaseTest, FailsWhenNavigationReportsFailure)
