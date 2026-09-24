@@ -17,8 +17,10 @@
 #include <any>
 #include <chrono>
 #include <cmath>
+#include <exception>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -38,7 +40,7 @@ namespace rover_mission_manager::infrastructure
 
 MissionManagerNode::MissionManagerNode(
     const std::string & node_name, const rclcpp::NodeOptions & options)
-: rclcpp::Node(node_name, options),
+: rclcpp_lifecycle::LifecycleNode(node_name, options),
   motion_locked_(true),
   motion_lock_received_(false),
   motion_lock_stamp_ns_(0),
@@ -50,6 +52,28 @@ MissionManagerNode::MissionManagerNode(
     param_listener_ =
         std::make_shared<mission_manager::ParamListener>(this->get_node_parameters_interface());
     params_ = param_listener_->get_params();
+
+    auto context = this->get_node_base_interface()->get_context();
+    pre_shutdown_handle_ = std::make_unique<rclcpp::PreShutdownCallbackHandle>(
+        context->add_pre_shutdown_callback([this]() { onPreShutdown(); }));
+}
+
+MissionManagerNode::~MissionManagerNode()
+{
+    if (pre_shutdown_handle_) {
+        this->get_node_base_interface()->get_context()->remove_pre_shutdown_callback(
+            *pre_shutdown_handle_);
+    }
+
+    // Destroyed without going through shutdown (e.g. a test dropping the node while the
+    // context lives on). Best effort, since a destructor must not throw.
+    try {
+        std::lock_guard<std::mutex> lock(mutex_);
+        stopMission("node destroyed");
+        releaseResources();
+    } catch (const std::exception & e) {
+        RCLCPP_WARN(this->get_logger(), "Mission manager teardown failed: %s", e.what());
+    }
 }
 
 std::string MissionManagerNode::resolveGoalFrameId() const
@@ -69,10 +93,150 @@ std::string MissionManagerNode::resolveGoalFrameId() const
     return ns.empty() ? "odom" : ns + "/odom";
 }
 
-void MissionManagerNode::initialize()
+MissionManagerNode::CallbackReturn MissionManagerNode::on_configure(
+    const rclcpp_lifecycle::State &)
 {
-    RCLCPP_INFO(this->get_logger(), "Initializing mission manager.");
+    std::lock_guard<std::mutex> lock(mutex_);
 
+    try {
+        build();
+    } catch (const std::exception & e) {
+        RCLCPP_ERROR(this->get_logger(), "Failed to configure the mission manager: %s", e.what());
+        releaseResources();
+        return CallbackReturn::FAILURE;
+    }
+
+    return CallbackReturn::SUCCESS;
+}
+
+MissionManagerNode::CallbackReturn MissionManagerNode::on_activate(
+    const rclcpp_lifecycle::State &)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    const auto timer_period = std::chrono::duration<double>(1.0 / params_.timer_frequency);
+    mission_tree_timer_ = this->create_wall_timer(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(timer_period),
+        std::bind(&MissionManagerNode::timerCb, this));
+
+    RCLCPP_INFO_STREAM(
+        this->get_logger(), "Mission manager active: ticking '"
+                                << params_.tree_name << "' at " << params_.timer_frequency
+                                << " Hz, goals in frame '" << goal_frame_id_ << "', Groot2 on "
+                                << mission_tree_runner_->grootPort() << ".");
+    return CallbackReturn::SUCCESS;
+}
+
+MissionManagerNode::CallbackReturn MissionManagerNode::on_deactivate(
+    const rclcpp_lifecycle::State &)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    stopMission("deactivated");
+    return CallbackReturn::SUCCESS;
+}
+
+MissionManagerNode::CallbackReturn MissionManagerNode::on_cleanup(
+    const rclcpp_lifecycle::State &)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    releaseResources();
+    return CallbackReturn::SUCCESS;
+}
+
+MissionManagerNode::CallbackReturn MissionManagerNode::on_shutdown(
+    const rclcpp_lifecycle::State &)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    // Reachable from every primary state, so both steps have to tolerate a node that was
+    // never configured or never activated.
+    stopMission("shutting down");
+    releaseResources();
+    return CallbackReturn::SUCCESS;
+}
+
+void MissionManagerNode::onPreShutdown()
+{
+    using lifecycle_msgs::msg::State;
+    if (this->get_current_state().id() == State::PRIMARY_STATE_FINALIZED) {
+        return;
+    }
+
+    RCLCPP_INFO(this->get_logger(), "Context shutting down: stopping the mission.");
+    this->shutdown();
+}
+
+bool MissionManagerNode::isActive() const
+{
+    return this->get_current_state().id() == lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE;
+}
+
+void MissionManagerNode::stopMission(const std::string & reason)
+{
+    if (mission_tree_timer_) {
+        mission_tree_timer_->cancel();
+        mission_tree_timer_.reset();
+    }
+
+    // Cancels the Nav 2 goal in flight and publishes the CANCELLED state. An idle or finished
+    // mission has no goal in flight and keeps its state, so a pause after a successful run
+    // does not rewrite it as cancelled.
+    if (run_mission_use_case_) {
+        const auto state = run_mission_use_case_->mission().state();
+        if (state == domain::MissionState::kRunning ||
+            state == domain::MissionState::kHeldByLock)
+        {
+            RCLCPP_WARN(this->get_logger(), "Cancelling the active mission: %s.", reason.c_str());
+            run_mission_use_case_->cancel();
+        }
+    }
+
+    if (mission_tree_runner_) {
+        mission_tree_runner_->haltTree();
+    }
+}
+
+void MissionManagerNode::releaseResources()
+{
+    mission_tree_timer_.reset();
+    run_mission_srv_.reset();
+    set_mission_srv_.reset();
+    motion_lock_sub_.reset();
+    battery_sub_.reset();
+    diagnostics_sub_.reset();
+
+    // The use case owns the navigation adapter, whose destructor cancels a goal still in
+    // flight; normally stopMission() already has.
+    run_mission_use_case_.reset();
+
+    // The tree before the helper node and the factory: its leaves hold subscriptions on
+    // bt_node_ and code from the factory's plugin libraries.
+    mission_tree_runner_.reset();
+
+    if (bt_node_) {
+        using lifecycle_msgs::msg::State;
+        if (bt_node_->get_current_state().id() == State::PRIMARY_STATE_ACTIVE) {
+            bt_node_->deactivate();
+        }
+        if (bt_node_->get_current_state().id() == State::PRIMARY_STATE_INACTIVE) {
+            bt_node_->cleanup();
+        }
+        if (bt_node_->get_current_state().id() == State::PRIMARY_STATE_UNCONFIGURED) {
+            bt_node_->shutdown();
+        }
+        bt_node_.reset();
+    }
+
+    factory_.reset();
+}
+
+void MissionManagerNode::build()
+{
+    RCLCPP_INFO(this->get_logger(), "Configuring mission manager.");
+
+    // Picks up parameters changed while the node was unconfigured.
+    params_ = param_listener_->get_params();
+
+    factory_ = std::make_unique<BT::BehaviorTreeFactory>();
     registerBehaviorTree();
 
     const std::map<std::string, std::any> mission_blackboard = {
@@ -84,8 +248,8 @@ void MissionManagerNode::initialize()
         params_.tree_name, mission_blackboard, static_cast<unsigned>(params_.bt_server_port));
     // BT leaf plugins (rover_navigation's IsMotionLocked, and any nav2_behavior_tree plugin
     // listed in ros_plugin_libs) look the node handle up on the blackboard under "node" and
-    // expect a nav2::LifecycleNode, as bt_navigator provides. Handing them this rclcpp::Node
-    // made BT::Any::convert throw and the manager die at startup. The leaves spin their own
+    // expect a nav2::LifecycleNode, as bt_navigator provides. Handing them this node made
+    // BT::Any::convert throw and the manager die at startup. The leaves spin their own
     // callback groups, so the helper node is deliberately left off any executor. Global
     // arguments are off so the launch file's `__node:=mission_manager` remap does not rename it
     // too.
@@ -105,7 +269,7 @@ void MissionManagerNode::initialize()
         throw std::runtime_error("Failed to activate the behavior tree helper node.");
     }
 
-    mission_tree_runner_->initialize(factory_, [this](BT::Blackboard::Ptr blackboard) {
+    mission_tree_runner_->initialize(*factory_, [this](BT::Blackboard::Ptr blackboard) {
         blackboard->set<nav2::LifecycleNode::SharedPtr>("node", bt_node_);
         blackboard->set<std::chrono::milliseconds>(
             "server_timeout",
@@ -145,6 +309,8 @@ void MissionManagerNode::initialize()
         params_.lidar_health_topic, rclcpp::QoS(rclcpp::KeepLast(20)).reliable(),
         std::bind(&MissionManagerNode::diagnosticsCb, this, std::placeholders::_1));
 
+    // Created here rather than on activate so callers see the services as soon as the node
+    // is configured; both refuse requests until it is active.
     run_mission_srv_ = this->create_service<std_srvs::srv::SetBool>(
         "run_mission", std::bind(
                            &MissionManagerNode::runMissionCb, this, std::placeholders::_1,
@@ -154,17 +320,6 @@ void MissionManagerNode::initialize()
         "set_mission", std::bind(
                            &MissionManagerNode::setMissionCb, this, std::placeholders::_1,
                            std::placeholders::_2));
-
-    const auto timer_period = std::chrono::duration<double>(1.0 / params_.timer_frequency);
-    mission_tree_timer_ = this->create_wall_timer(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(timer_period),
-        std::bind(&MissionManagerNode::timerCb, this));
-
-    RCLCPP_INFO_STREAM(
-        this->get_logger(), "Mission manager ready: ticking '"
-                                << params_.tree_name << "' at " << params_.timer_frequency
-                                << " Hz, goals in frame '" << goal_frame_id_ << "', Groot2 on "
-                                << mission_tree_runner_->grootPort() << ".");
 }
 
 void MissionManagerNode::registerBehaviorTree()
@@ -175,17 +330,17 @@ void MissionManagerNode::registerBehaviorTree()
 
     // Plain BT.CPP plugins first: they need nothing from ROS.
     for (const auto & plugin : params_.plugin_libs) {
-        factory_.registerFromPlugin(BT::SharedLibrary::getOSName(plugin));
+        factory_->registerFromPlugin(BT::SharedLibrary::getOSName(plugin));
     }
 
     // nav2_behavior_tree's plugins read the node handle and their timeouts off the
     // blackboard of the tree they are built into, so those entries are seeded in
     // BehaviorTreeRunner; here we only need the libraries loaded.
     for (const auto & plugin : params_.ros_plugin_libs) {
-        factory_.registerFromPlugin(BT::SharedLibrary::getOSName(plugin));
+        factory_->registerFromPlugin(BT::SharedLibrary::getOSName(plugin));
     }
 
-    factory_.registerBehaviorTreeFromFile(params_.bt_project_path);
+    factory_->registerBehaviorTreeFromFile(params_.bt_project_path);
 
     RCLCPP_INFO_STREAM(
         this->get_logger(),
@@ -269,8 +424,17 @@ void MissionManagerNode::runMissionCb(
     const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
     std::shared_ptr<std_srvs::srv::SetBool::Response> response)
 {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    if (!isActive()) {
+        response->success = false;
+        response->message = "Mission manager is not active.";
+        return;
+    }
+
     if (!request->data) {
         run_mission_use_case_->cancel();
+        mission_tree_runner_->haltTree();
         response->success = true;
         response->message = "Mission cancelled.";
         return;
@@ -289,6 +453,15 @@ void MissionManagerNode::setMissionCb(
     const std::shared_ptr<rover_msgs::srv::SetMission::Request> request,
     std::shared_ptr<rover_msgs::srv::SetMission::Response> response)
 {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    if (!isActive()) {
+        response->success = false;
+        response->message = "Mission manager is not active.";
+        RCLCPP_WARN(this->get_logger(), "set_mission rejected: %s", response->message.c_str());
+        return;
+    }
+
     std::string error;
     auto mission = missionFromRequest(
         *request, goal_frame_id_, "mission-" + std::to_string(missions_accepted_ + 1), error);
@@ -305,6 +478,8 @@ void MissionManagerNode::setMissionCb(
     const auto count = mission->waypoints().size();
 
     // accept() cancels whatever is in flight, so a new GoTo simply replaces the old mission.
+    // The tree restarts from its root too, so no stateful leaf carries on from the old one.
+    mission_tree_runner_->haltTree();
     run_mission_use_case_->accept(std::move(*mission));
 
     response->success = true;
@@ -315,6 +490,13 @@ void MissionManagerNode::setMissionCb(
 
 void MissionManagerNode::timerCb()
 {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    // A tick already queued when on_deactivate cancelled the timer can still run once.
+    if (!run_mission_use_case_ || !isActive()) {
+        return;
+    }
+
     run_mission_use_case_->tick(currentConditions());
 
     mission_tree_runner_->tickOnce();

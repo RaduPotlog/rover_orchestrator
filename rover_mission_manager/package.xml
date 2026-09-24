@@ -20,6 +20,7 @@
   <depend>nav2_ros_common</depend>
   <depend>rclcpp</depend>
   <depend>rclcpp_action</depend>
+  <depend>rclcpp_lifecycle</depend>
   <depend>rover_msgs</depend>
   <depend>rover_utils</depend>
   <depend>sensor_msgs</depend>

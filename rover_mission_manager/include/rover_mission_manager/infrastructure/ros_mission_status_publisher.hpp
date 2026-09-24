@@ -18,6 +18,7 @@
 #include <string>
 
 #include <rclcpp/rclcpp.hpp>
+#include <rclcpp_lifecycle/lifecycle_node.hpp>
 #include <rover_msgs/msg/mission_state.hpp>
 #include <std_msgs/msg/string.hpp>
 
@@ -33,17 +34,23 @@ namespace rover_mission_manager::infrastructure
  *
  * Both are latched (transient_local, depth 1) so a tool attaching later still sees the
  * current state.
+ *
+ * Plain rclcpp publishers, not lifecycle ones, on purpose: the manager's on_deactivate and
+ * on_shutdown cancel the mission, and that final CANCELLED state has to reach operators even
+ * though the node is on its way out of ACTIVE.
  */
 class RosMissionStatusPublisher : public domain::ports::MissionStatusPublisherPort
 {
 public:
     RosMissionStatusPublisher(
-        rclcpp::Node * node, const std::string & status_topic, const std::string & state_topic);
+        rclcpp_lifecycle::LifecycleNode * node,
+        const std::string & status_topic,
+        const std::string & state_topic);
 
     void publish(const domain::Mission & mission) override;
 
 private:
-    rclcpp::Node * node_;
+    rclcpp_lifecycle::LifecycleNode * node_;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher_;
     rclcpp::Publisher<rover_msgs::msg::MissionState>::SharedPtr state_publisher_;
 };

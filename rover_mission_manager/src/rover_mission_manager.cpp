@@ -14,7 +14,9 @@
 
 #include <exception>
 #include <memory>
+#include <stdexcept>
 
+#include <lifecycle_msgs/msg/state.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 #include "rover_mission_manager/infrastructure/mission_manager_node.hpp"
@@ -23,23 +25,35 @@ int main(int argc, char ** argv)
 {
     rclcpp::init(argc, argv);
 
+    int exit_code = 0;
+
     try {
         auto mission_manager_node =
             std::make_shared<rover_mission_manager::infrastructure::MissionManagerNode>(
                 "mission_manager");
 
-        // initialize() needs shared_from_this() to seed the behavior tree blackboard, so it
-        // cannot run inside the constructor.
-        mission_manager_node->initialize();
+        // Autostart by default, so the node behaves as it did before it became a lifecycle
+        // node: a manager that cannot configure (a bad tree, a missing plugin) exits non-zero
+        // and the container restarts it, rather than idling unconfigured.
+        if (mission_manager_node->autostart()) {
+            using lifecycle_msgs::msg::State;
+            if (mission_manager_node->configure().id() != State::PRIMARY_STATE_INACTIVE ||
+                mission_manager_node->activate().id() != State::PRIMARY_STATE_ACTIVE)
+            {
+                throw std::runtime_error("the mission manager failed to start");
+            }
+        }
 
-        rclcpp::spin(mission_manager_node);
+        // Single-threaded on purpose. Every callback here returns promptly -- the Nav 2 goal
+        // is dispatched and polled without waiting -- and one thread keeps the timer, the
+        // services and the action-client callbacks from ever running concurrently.
+        rclcpp::spin(mission_manager_node->get_node_base_interface());
     } catch (const std::exception & e) {
         RCLCPP_FATAL_STREAM(
             rclcpp::get_logger("mission_manager"), "Caught exception: " << e.what());
-        rclcpp::shutdown();
-        return 1;
+        exit_code = 1;
     }
 
     rclcpp::shutdown();
-    return 0;
+    return exit_code;
 }

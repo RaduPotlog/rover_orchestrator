@@ -15,6 +15,7 @@
 #include "rover_mission_manager/infrastructure/nav2_navigation_adapter.hpp"
 
 #include <cmath>
+#include <exception>
 #include <mutex>
 #include <string>
 #include <utility>
@@ -26,7 +27,7 @@ using domain::ports::DispatchResult;
 using domain::ports::NavigationResult;
 
 Nav2NavigationAdapter::Nav2NavigationAdapter(
-    rclcpp::Node * node,
+    rclcpp_lifecycle::LifecycleNode * node,
     const std::string & action_name,
     std::string goal_frame_id,
     std::chrono::duration<double> server_timeout)
@@ -36,6 +37,18 @@ Nav2NavigationAdapter::Nav2NavigationAdapter(
   result_(NavigationResult::kIdle)
 {
     client_ = rclcpp_action::create_client<NavigateToPose>(node_, action_name);
+}
+
+Nav2NavigationAdapter::~Nav2NavigationAdapter()
+{
+    // Normally a no-op: the manager cancels on deactivate and on shutdown. Best effort here,
+    // since the context may already be gone, and a destructor must not throw.
+    try {
+        cancel();
+    } catch (const std::exception & e) {
+        RCLCPP_WARN(
+            node_->get_logger(), "Could not cancel the navigate_to_pose goal: %s", e.what());
+    }
 }
 
 DispatchResult Nav2NavigationAdapter::goTo(const domain::Waypoint & waypoint)
@@ -74,11 +87,24 @@ DispatchResult Nav2NavigationAdapter::goTo(const domain::Waypoint & waypoint)
     goal.pose.pose.orientation.z = std::sin(waypoint.yaw / 2.0);
     goal.pose.pose.orientation.w = std::cos(waypoint.yaw / 2.0);
 
+    // A new goal supersedes the previous one. Nav 2 preempts it on the server side; here it
+    // only has to stop counting, so its late response or result cannot overwrite this one's.
+    std::uint64_t generation;
+    {
+        std::lock_guard<std::mutex> lock(goal_mutex_);
+        generation = ++generation_;
+        goal_handle_.reset();
+    }
+
     rclcpp_action::Client<NavigateToPose>::SendGoalOptions options;
     options.goal_response_callback =
-        [this](const GoalHandle::SharedPtr & handle) { goalResponseCb(handle); };
+        [this, generation](const GoalHandle::SharedPtr & handle) {
+            goalResponseCb(generation, handle);
+        };
     options.result_callback =
-        [this](const GoalHandle::WrappedResult & wrapped) { resultCb(wrapped); };
+        [this, generation](const GoalHandle::WrappedResult & wrapped) {
+            resultCb(generation, wrapped);
+        };
 
     result_ = NavigationResult::kPending;
     client_->async_send_goal(goal, options);
@@ -86,10 +112,25 @@ DispatchResult Nav2NavigationAdapter::goTo(const domain::Waypoint & waypoint)
     return DispatchResult::kDispatched;
 }
 
-void Nav2NavigationAdapter::goalResponseCb(const GoalHandle::SharedPtr & goal_handle)
+void Nav2NavigationAdapter::goalResponseCb(
+    std::uint64_t generation, const GoalHandle::SharedPtr & goal_handle)
 {
     {
-        std::lock_guard<std::mutex> lock(goal_handle_mutex_);
+        std::lock_guard<std::mutex> lock(goal_mutex_);
+
+        if (generation != generation_) {
+            // cancel() (or a newer goal) ran before the server answered. The mission has
+            // already moved on, so a goal the server did accept must not be left driving.
+            if (goal_handle != nullptr) {
+                RCLCPP_INFO(
+                    node_->get_logger(),
+                    "Cancelling a navigate_to_pose goal that was accepted after it was "
+                    "abandoned.");
+                client_->async_cancel_goal(goal_handle);
+            }
+            return;
+        }
+
         goal_handle_ = goal_handle;
     }
 
@@ -99,10 +140,18 @@ void Nav2NavigationAdapter::goalResponseCb(const GoalHandle::SharedPtr & goal_ha
     }
 }
 
-void Nav2NavigationAdapter::resultCb(const GoalHandle::WrappedResult & wrapped_result)
+void Nav2NavigationAdapter::resultCb(
+    std::uint64_t generation, const GoalHandle::WrappedResult & wrapped_result)
 {
     {
-        std::lock_guard<std::mutex> lock(goal_handle_mutex_);
+        std::lock_guard<std::mutex> lock(goal_mutex_);
+
+        // The outcome of an abandoned goal, including the CANCELED our own cancel() causes.
+        // The use case has already moved on and may have a newer goal in flight.
+        if (generation != generation_) {
+            return;
+        }
+
         goal_handle_.reset();
     }
 
@@ -112,9 +161,14 @@ void Nav2NavigationAdapter::resultCb(const GoalHandle::WrappedResult & wrapped_r
             break;
 
         case rclcpp_action::ResultCode::CANCELED:
-            // A cancel is always our own doing (hold, abort or a new mission), and the use
-            // case has already moved on. Reporting kFailed here would abort that mission.
-            result_ = NavigationResult::kIdle;
+            // Our own cancels start a new generation and never get here, so this goal was
+            // cancelled by another client (an RViz panel, a CLI). Reporting kIdle would make
+            // the use case send the same waypoint straight back to Nav 2, overriding the
+            // operator. Fail the mission instead.
+            RCLCPP_WARN(
+                node_->get_logger(),
+                "navigate_to_pose goal was cancelled by another client; failing the mission.");
+            result_ = NavigationResult::kFailed;
             break;
 
         case rclcpp_action::ResultCode::ABORTED:
@@ -129,8 +183,12 @@ void Nav2NavigationAdapter::cancel()
 {
     GoalHandle::SharedPtr handle;
     {
-        std::lock_guard<std::mutex> lock(goal_handle_mutex_);
-        handle = goal_handle_;
+        std::lock_guard<std::mutex> lock(goal_mutex_);
+        // Invalidates the goal in flight even when its handle has not arrived yet:
+        // goalResponseCb then cancels it on arrival.
+        ++generation_;
+        handle = std::move(goal_handle_);
+        goal_handle_.reset();
     }
 
     if (handle != nullptr) {
