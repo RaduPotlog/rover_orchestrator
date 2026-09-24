@@ -76,8 +76,9 @@ def generate_launch_description():
         "maps_dir",
         default_value="/maps",
         description=(
-            "localization_source:=indoor only: where rover_indoor_nav_manager keeps its maps, "
-            "places and last pose (the rover-maps volume in rover-a1-orchestrator)."
+            "Where maps are kept (the rover-maps volume in rover-a1-orchestrator). With "
+            "localization_source:=indoor, rover_indoor_nav_manager keeps its maps, places and "
+            "last pose here. With slam, map_autosaver writes <maps_dir>/map.{yaml,pgm}."
         ),
     )
     declare_namespace_arg = DeclareLaunchArgument(
@@ -380,7 +381,10 @@ def generate_launch_description():
                 name="map_autosaver",
                 package="rover_navigation",
                 executable="map_autosaver_node",
-                parameters=[configured_params],
+                parameters=[
+                    configured_params,
+                    {"map_directory": PathJoinSubstitution([maps_dir, "map"])},
+                ],
                 arguments=["--ros-args", "--log-level", log_level],
                 output="screen",
             ),

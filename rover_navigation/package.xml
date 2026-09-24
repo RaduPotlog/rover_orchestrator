@@ -17,7 +17,6 @@
   <depend>nav2_ros_common</depend>
   <depend>nav_msgs</depend>
   <depend>rclcpp</depend>
-  <depend>spatio_temporal_voxel_layer</depend>
   <depend>std_msgs</depend>
 
   <!-- Nav 2 servers spawned by launch/rover_nav.launch.py, launch/localization.launch.py
@@ -36,7 +35,6 @@
   <exec_depend>nav2_planner</exec_depend>
   <!-- planner_server's GridBased plugin. -->
   <exec_depend>nav2_smac_planner</exec_depend>
-  <exec_depend>nav2_smoother</exec_depend>
   <exec_depend>nav2_velocity_smoother</exec_depend>
   <exec_depend>nav2_waypoint_follower</exec_depend>
   <!-- Self-filter for the pointcloud path. Source-only; pinned in
@@ -47,6 +45,8 @@
        (use_composition defaults to True). -->
   <exec_depend>rclcpp_components</exec_depend>
   <exec_depend>slam_toolbox</exec_depend>
+  <!-- Both costmaps' stvl_layer; pluginlib loads it by name from config/rover_nav_params.yaml. -->
+  <exec_depend>spatio_temporal_voxel_layer</exec_depend>
 
   <test_depend>ament_cmake_gtest</test_depend>
   <test_depend>ament_cmake_pytest</test_depend>

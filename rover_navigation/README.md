@@ -152,8 +152,8 @@ ros2 launch rover_navigation localization.launch.py \
 ## Nodes, Topics and Frames
 
 Lifecycle nodes managed by `lifecycle_manager_navigation`: `controller_server`,
-`smoother_server`, `planner_server`, `behavior_server`, `bt_navigator`,
-`waypoint_follower`, `velocity_smoother`. `map_server` is managed separately by
+`planner_server`, `behavior_server`, `bt_navigator`, `waypoint_follower`,
+`velocity_smoother`. There is no `smoother_server`, because neither tree calls `SmoothPath`. `map_server` is managed separately by
 `lifecycle_manager_localization`.
 
 | Direction | Topic | Type |
@@ -247,7 +247,8 @@ ros2 launch rover_navigation bringup.launch.py \
 puts the map origin at the start pose, which is what makes the default
 `initial_pose 0,0,0` correct later. Then teleop slowly through the whole area, closing at
 least one loop. `map_autosaver_node` calls `map_saver` every 15 s and writes
-`/maps/map.yaml` + `/maps/map.pgm`.
+`<maps_dir>/map.yaml` + `<maps_dir>/map.pgm`. `maps_dir` is `/maps` unless bringup gets
+`maps_dir:=…`, so the commands below assume the default.
 
 ```bash
 ros2 topic echo /rover/map --field info --once    # check it looks sane
@@ -256,6 +257,9 @@ scp -P 24 root@<device>:/maps/map.* .             # back it up off the device
 ```
 
 ### 2. Navigate against it
+
+Nothing loads the autosaved map on its own, and SLAM mode always starts a fresh map. AMCL
+mode gets the map only from the `map` argument, so point it at the file step 1 wrote:
 
 ```bash
 ros2 launch rover_navigation bringup.launch.py \

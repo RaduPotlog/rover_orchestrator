@@ -53,10 +53,13 @@ target_link_libraries(map_autosaver_node ${PROJECT_NAME}_ros)
 install(TARGETS map_autosaver_node DESTINATION lib/${PROJECT_NAME})
 
 # BehaviorTree leaf plugins, loaded by bt_navigator via `plugin_lib_names`.
+# Each plugin links its own message package; the loop below adds what they all share.
 add_library(is_motion_locked_bt_node SHARED src/plugins/condition/is_motion_locked.cpp)
+target_link_libraries(is_motion_locked_bt_node ${std_msgs_TARGETS})
 list(APPEND plugin_libs is_motion_locked_bt_node)
 
 add_library(is_lidar_healthy_bt_node SHARED src/plugins/condition/is_lidar_healthy.cpp)
+target_link_libraries(is_lidar_healthy_bt_node ${diagnostic_msgs_TARGETS})
 list(APPEND plugin_libs is_lidar_healthy_bt_node)
 
 foreach(bt_plugin ${plugin_libs})
@@ -65,10 +68,8 @@ foreach(bt_plugin ${plugin_libs})
         $<INSTALL_INTERFACE:include>)
     target_link_libraries(${bt_plugin}
         ${behaviortree_cpp_TARGETS}
-        ${diagnostic_msgs_TARGETS}
         ${nav2_ros_common_TARGETS}
-        ${rclcpp_TARGETS}
-        ${std_msgs_TARGETS})
+        ${rclcpp_TARGETS})
     target_compile_definitions(${bt_plugin} PRIVATE BT_PLUGIN_EXPORT)
 endforeach()
 
@@ -103,15 +104,28 @@ if(BUILD_TESTING)
     ament_add_gtest(test_autosave_map_use_case test/unit/test_autosave_map_use_case.cpp)
     target_link_libraries(test_autosave_map_use_case ${PROJECT_NAME}_core)
 
+    # Single-process ROS tests. The workspace runs rmw_zenoh, which needs a router, and the
+    # login shell points Zenoh at the rover's router. Off the rover these tests would hang or
+    # die in setup; on it they would join the live graph. So they run on FastDDS over
+    # localhost whenever it is installed (ros-base ships it).
+    find_package(rmw_fastrtps_cpp QUIET)
+    if(rmw_fastrtps_cpp_FOUND)
+        set(ISOLATED_ROS_TEST_ENV
+            RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+            ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST)
+    endif()
+
     # The rover's E-Stop condition inside a navigation tree. Its contract is entirely about
     # fail-safe defaults - no message and a stale message must both read as locked - and those
     # paths fail in the field as "navigation carried on" rather than as an error.
-    ament_add_gtest(test_is_motion_locked test/unit/test_is_motion_locked.cpp)
+    ament_add_gtest(test_is_motion_locked test/unit/test_is_motion_locked.cpp
+                    ENV ${ISOLATED_ROS_TEST_ENV})
     target_link_libraries(test_is_motion_locked is_motion_locked_bt_node)
 
     # The lidar-health guard in the same trees. Its contract is also about defaults: a lidar
     # never seen is fine unless require_present, a stale or ERROR/STALE status is not.
-    ament_add_gtest(test_is_lidar_healthy test/unit/test_is_lidar_healthy.cpp)
+    ament_add_gtest(test_is_lidar_healthy test/unit/test_is_lidar_healthy.cpp
+                    ENV ${ISOLATED_ROS_TEST_ENV})
     target_link_libraries(test_is_lidar_healthy is_lidar_healthy_bt_node)
 
     # Mechanically enforce that domain/ never grows a ROS or BehaviorTree dependency. Plain

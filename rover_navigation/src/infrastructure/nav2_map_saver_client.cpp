@@ -21,6 +21,12 @@
 namespace rover_navigation::infrastructure
 {
 
+namespace
+{
+// Longer than any save takes; a request older than this has no reply coming.
+constexpr std::chrono::minutes kPendingRequestLifetime{5};
+}  // namespace
+
 Nav2MapSaverClient::Nav2MapSaverClient(
     rclcpp::Node * node,
     const std::string & service_name,
@@ -47,8 +53,28 @@ bool Nav2MapSaverClient::save(const domain::MapSaveRequest & request)
     srv_request->free_thresh = request.free_thresh;
     srv_request->occupied_thresh = request.occupied_thresh;
 
-    client_->async_send_request(srv_request);
+    // A saver that never answers would otherwise leave its requests pending forever.
+    client_->prune_requests_older_than(
+        std::chrono::system_clock::now() - kPendingRequestLifetime);
+
+    client_->async_send_request(
+        srv_request,
+        [this, map_url = request.map_url](rclcpp::Client<SaveMapSrv>::SharedFuture future) {
+            responseCb(map_url, future);
+        });
     return true;
+}
+
+void Nav2MapSaverClient::responseCb(
+    const std::string & map_url, rclcpp::Client<SaveMapSrv>::SharedFuture future)
+{
+    if (!future.get()->result) {
+        RCLCPP_WARN_STREAM(
+            node_->get_logger(),
+            "map_saver failed to write the map to '" << map_url
+                                                     << "'. Check that its directory exists and "
+                                                        "is writable.");
+    }
 }
 
 }  // namespace rover_navigation::infrastructure

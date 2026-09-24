@@ -40,13 +40,16 @@ public:
     /**
      * @brief Dispatch a save request.
      *
-     * The request is sent asynchronously and the reply is discarded: map_saver writes the
-     * file itself, and blocking the timer thread on the response would stall the node. A
-     * false return therefore means "could not reach the saver", not "the write failed".
+     * The request is sent asynchronously, because blocking the timer thread on the response
+     * would stall the node. A false return therefore means "could not reach the saver", not
+     * "the write failed". map_saver's reply is still checked when it arrives, and a failed
+     * write (disk full, a map_directory that does not exist) is logged there.
      */
     bool save(const domain::MapSaveRequest & request) override;
 
 private:
+    void responseCb(const std::string & map_url, rclcpp::Client<SaveMapSrv>::SharedFuture future);
+
     rclcpp::Node * node_;
     rclcpp::Client<SaveMapSrv>::SharedPtr client_;
     std::chrono::duration<double> connection_timeout_;
