@@ -95,23 +95,12 @@ void MapAutosaverNode::initialize()
 void MapAutosaverNode::autosaveCb()
 {
     switch (autosave_map_use_case_->execute()) {
-        case application::AutosaveOutcome::kRequested:
+        case application::AutosaveOutcome::kSaved:
             RCLCPP_DEBUG(this->get_logger(), "Map save requested.");
             break;
 
         case application::AutosaveOutcome::kSkippedBackingOff:
             RCLCPP_DEBUG(this->get_logger(), "Skipping map save while backing off.");
-            break;
-
-        case application::AutosaveOutcome::kSkippedInFlight:
-            RCLCPP_DEBUG(this->get_logger(), "Previous map save still pending; skipping.");
-            break;
-
-        case application::AutosaveOutcome::kSaveTimedOut:
-            RCLCPP_WARN_THROTTLE(
-                this->get_logger(), *this->get_clock(), 10000,
-                "'%s' never answered a save request (%d consecutive failures); backing off.",
-                kSaveMapService, autosave_map_use_case_->policy().consecutiveFailures());
             break;
 
         case application::AutosaveOutcome::kSaverUnavailable:

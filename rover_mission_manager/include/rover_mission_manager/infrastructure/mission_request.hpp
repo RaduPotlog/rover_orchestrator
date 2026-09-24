@@ -25,9 +25,6 @@
 namespace rover_mission_manager::infrastructure
 {
 
-/** @brief A frame id without its leading slashes, as tf2 compares them. */
-std::string stripLeadingSlash(const std::string & frame);
-
 /**
  * @brief Translate a SetMission request into a domain mission.
  *

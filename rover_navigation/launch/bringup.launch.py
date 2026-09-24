@@ -76,9 +76,8 @@ def generate_launch_description():
         "maps_dir",
         default_value="/maps",
         description=(
-            "Where maps are kept (the rover-maps volume in rover-a1-orchestrator). With "
-            "localization_source:=indoor, rover_indoor_nav_manager keeps its maps, places and "
-            "last pose here. With slam, map_autosaver writes <maps_dir>/map.{yaml,pgm}."
+            "localization_source:=indoor only: where rover_indoor_nav_manager keeps its maps, "
+            "places and last pose (the rover-maps volume in rover-a1-orchestrator)."
         ),
     )
     declare_namespace_arg = DeclareLaunchArgument(
@@ -237,6 +236,12 @@ def generate_launch_description():
             "max_z": 0.5,
         },
     }
+    # Output of pointcloud_crop_box, and the topic the stvl_layer's `pointcloud` source
+    # reads. Only produced in pointcloud mode.
+    observation_topic_filtered = PythonExpression(
+        ["'", observation_topic, "_filtered'"],
+    )
+
     def override_params_file(robot_model_name):
         bounding_box = robot_bounding_box[robot_model_name]
         params = ReplaceString(
@@ -375,10 +380,7 @@ def generate_launch_description():
                 name="map_autosaver",
                 package="rover_navigation",
                 executable="map_autosaver_node",
-                parameters=[
-                    configured_params,
-                    {"map_directory": PathJoinSubstitution([maps_dir, "map"])},
-                ],
+                parameters=[configured_params],
                 arguments=["--ros-args", "--log-level", log_level],
                 output="screen",
             ),

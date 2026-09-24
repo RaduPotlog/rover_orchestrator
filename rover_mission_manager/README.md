@@ -4,7 +4,7 @@ Behavior-tree-driven mission supervision for the Rover A1, running on the orches
 computer next to `rover_navigation`.
 
 The shape is the "manager" pattern used throughout this fleet — `rover_safety` in `rover_ros`,
-and Husarion's `lights_manager` / `safety_manager` / `docking_manager`: a node owns a
+and Husarion's `lights_manager` / `safety_manager` / `docking_manager`: a plain node owns a
 BehaviorTree, ticks it once per wall-timer period, loads its leaf nodes from `.so` names given
 as parameters, and exposes the live tree to Groot2.
 
@@ -63,23 +63,6 @@ ros2 launch rover_mission_manager rover_mission_manager.launch.py \
 decides whether waypoints are interpreted in `<namespace>/odom` (`odom`) or
 `<namespace>/map` (`gps`, `slam`, `amcl`). `rover_navigation`'s
 `test_localization_launch.py` asserts the two argument declarations stay in sync.
-
-### Lifecycle
-
-`mission_manager` is a lifecycle node, and by default (`autostart: true`) it configures and
-activates itself at startup. If it cannot configure (a missing tree or plugin), the process
-exits non-zero so the container restarts it.
-
-| Transition | What happens |
-|---|---|
-| configure | Builds the tree and the Nav 2 / status adapters, and subscribes. `set_mission` and `run_mission` exist from here on but refuse requests until the node is active. |
-| activate | Starts the tick timer. |
-| deactivate | Stops ticking, **cancels the running mission and its Nav 2 goal**, and halts the tree. This is how to pause the manager without leaving the rover driving: `ros2 lifecycle set /<ns>/mission_manager deactivate`. |
-| cleanup | Releases everything configure built, including the Groot2 port. |
-| shutdown | Runs from rclcpp's pre-shutdown hook on Ctrl+C / SIGTERM, while the context is still valid, so a goal in flight is cancelled instead of abandoned. |
-
-To hand the node to an external manager, set `autostart: false`. The node does not open a
-bond, so a `nav2_lifecycle_manager` driving it needs `bond_timeout: 0.0`.
 
 ## Interfaces
 
@@ -146,13 +129,12 @@ live there, and `config/mission_manager.yaml` carries the deployed values. Notab
 
 | Parameter | Default | Notes |
 |---|---|---|
-| `autostart` | `true` | Configure and activate at startup. `false` leaves the node unconfigured for an external lifecycle manager. |
 | `bt_project_path` | *(required)* | The node refuses to start without it. |
 | `tree_name` | `RoverMission` | Tree ID inside the project. |
 | `timer_frequency` | `20.0` Hz | Tick rate. |
 | `bt_server_port` | `4444` | Groot2. The next free port is used if taken, so several managers coexist. |
 | `plugin_libs` | `[is_motion_locked_bt_node]` | Plain BT.CPP plugins. Built by `rover_navigation`. |
-| `ros_plugin_libs` | *(unset)* | See the note in `config/mission_manager.yaml` — an empty YAML list is rejected by rcl, so leave it unset rather than writing `[]`. Leaves get a helper `nav2::LifecycleNode` that is on no executor, so they must spin their own callback group, as `nav2_behavior_tree`'s action, service and topic leaves do. |
+| `ros_plugin_libs` | *(unset)* | See the note in `config/mission_manager.yaml` — an empty YAML list is rejected by rcl, so leave it unset rather than writing `[]`. |
 | `goal_frame_id` | `""` | Empty derives `<namespace>/odom`; the launch file sets it to `<namespace>/map` for `gps`, `slam` and `amcl`. |
 | `motion_lock_timeout` | `0.5` s | Publisher runs at 10 Hz. |
 | `lidar_health_topic` | `diagnostics` | Raw `DiagnosticArray` topic, not `diagnostics_agg`. |
@@ -168,17 +150,5 @@ colcon test --packages-select rover_mission_manager
 colcon test-result --all
 ```
 
-Unit tests cover the mission state machine, the policy (including the lidar-health rules)
-and the use case. They run without a ROS graph, which is the point of the `_core` split. The
-domain-purity check runs alongside them. There are two single-process ROS tests:
-
-- `test_nav2_navigation_adapter` runs the adapter against an in-process fake `navigate_to_pose`
-  server. It covers a cancel issued before the goal response arrives, which must still cancel
-  the goal the server accepts. It also checks that our own CANCELED is ignored while another
-  client's CANCELED fails the goal.
-- `test_mission_manager_initialize` builds the node from the shipped config and tree, then
-  drives it configure → activate → `set_mission` (HELD, since there is no motion lock) →
-  deactivate (CANCELLED) → cleanup → configure again.
-
-Off the rover, run them on FastDDS with `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST`, and unset
-the Zenoh client config.
+33 unit tests covering the mission state machine, the policy (including the lidar-health
+rules) and the use case, plus the domain-purity check. All run without a ROS graph, which is the point of the `_core` split.

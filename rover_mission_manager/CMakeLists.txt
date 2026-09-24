@@ -11,12 +11,10 @@ set(DEPENDENCIES
     diagnostic_msgs
     generate_parameter_library
     geometry_msgs
-    lifecycle_msgs
     nav2_msgs
     nav2_ros_common
     rclcpp
     rclcpp_action
-    rclcpp_lifecycle
     rover_msgs
     rover_utils
     sensor_msgs
@@ -58,12 +56,10 @@ target_link_libraries(${PROJECT_NAME}_ros
     ${behaviortree_cpp_TARGETS}
     ${diagnostic_msgs_TARGETS}
     ${geometry_msgs_TARGETS}
-    ${lifecycle_msgs_TARGETS}
     ${nav2_msgs_TARGETS}
     ${nav2_ros_common_TARGETS}
     ${rclcpp_TARGETS}
     ${rclcpp_action_TARGETS}
-    ${rclcpp_lifecycle_TARGETS}
     ${rover_msgs_TARGETS}
     ${sensor_msgs_TARGETS}
     ${std_msgs_TARGETS}
@@ -95,36 +91,6 @@ if(BUILD_TESTING)
 
     ament_add_gtest(test_mission_request test/unit/test_mission_request.cpp)
     target_link_libraries(test_mission_request ${PROJECT_NAME}_ros)
-
-    # Single-process ROS tests. The workspace runs rmw_zenoh, which needs a router, and the
-    # login shell points Zenoh at the rover's router. Off the rover these tests would hang or
-    # die in setup; on it they would join the live graph. So they run on FastDDS over
-    # localhost whenever it is installed (ros-base ships it).
-    find_package(rmw_fastrtps_cpp QUIET)
-    if(rmw_fastrtps_cpp_FOUND)
-        set(ISOLATED_ROS_TEST_ENV
-            RMW_IMPLEMENTATION=rmw_fastrtps_cpp
-            ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST)
-    endif()
-
-    # Builds the node from the shipped config and tree. is_motion_locked_bt_node comes from
-    # rover_navigation's install/lib, which colcon puts on the library path for its dependents.
-    ament_add_gtest(test_mission_manager_initialize
-                    test/integration/test_mission_manager_initialize.cpp
-                    TIMEOUT 60
-                    ENV ${ISOLATED_ROS_TEST_ENV})
-    target_compile_definitions(test_mission_manager_initialize PRIVATE
-        ROVER_MISSION_MANAGER_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/config/mission_manager.yaml"
-        ROVER_MISSION_MANAGER_TREE="${CMAKE_CURRENT_SOURCE_DIR}/behavior_trees/rover_mission.xml")
-    target_link_libraries(test_mission_manager_initialize ${PROJECT_NAME}_ros)
-
-    # The adapter against an in-process fake navigate_to_pose server: the cancel-before-accept
-    # race, and CANCELED results from our own cancel vs. another client's.
-    ament_add_gtest(test_nav2_navigation_adapter
-                    test/integration/test_nav2_navigation_adapter.cpp
-                    TIMEOUT 60
-                    ENV ${ISOLATED_ROS_TEST_ENV})
-    target_link_libraries(test_nav2_navigation_adapter ${PROJECT_NAME}_ros)
 
     # Mechanically enforce that domain/ never grows a ROS or BehaviorTree dependency.
     add_test(

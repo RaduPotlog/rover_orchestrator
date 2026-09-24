@@ -17,14 +17,12 @@
 
 #include <atomic>
 #include <memory>
-#include <mutex>
 #include <string>
 
 #include <behaviortree_cpp/bt_factory.h>
 #include <diagnostic_msgs/msg/diagnostic_array.hpp>
 #include <nav2_ros_common/lifecycle_node.hpp>
 #include <rclcpp/rclcpp.hpp>
-#include <rclcpp_lifecycle/lifecycle_node.hpp>
 #include <rover_msgs/srv/set_mission.hpp>
 #include <sensor_msgs/msg/battery_state.hpp>
 #include <std_msgs/msg/bool.hpp>
@@ -48,56 +46,25 @@ namespace rover_mission_manager::infrastructure
  * is made of, and which leaf nodes run in what order -- and is meant to be edited in Groot2
  * without recompiling. RunMissionUseCase is the *invariant* part: waypoint bookkeeping and
  * the safety rules that must hold whatever the tree says.
- *
- * A lifecycle node because it owns a Nav 2 goal while a mission runs:
- * - configure builds the tree, the adapters, the subscriptions and the services;
- * - activate starts the tick timer;
- * - deactivate stops it, cancels the mission (and with it the Nav 2 goal) and halts the tree,
- *   so `ros2 lifecycle set mission_manager deactivate` pauses the manager without leaving
- *   the rover driving;
- * - cleanup and shutdown release everything configure built.
- * rclcpp's pre-shutdown hook runs the shutdown transition while the context is still valid,
- * so Ctrl+C / SIGTERM cancels the goal in flight instead of abandoning it.
  */
-class MissionManagerNode : public rclcpp_lifecycle::LifecycleNode
+class MissionManagerNode : public rclcpp::Node
 {
 public:
-    using CallbackReturn =
-        rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
-
     explicit MissionManagerNode(
         const std::string & node_name,
         const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
 
-    ~MissionManagerNode() override;
-
-    /** @brief The `autostart` parameter: configure and activate right after construction. */
-    bool autostart() const { return params_.autostart; }
-
-    CallbackReturn on_configure(const rclcpp_lifecycle::State & previous_state) override;
-    CallbackReturn on_activate(const rclcpp_lifecycle::State & previous_state) override;
-    CallbackReturn on_deactivate(const rclcpp_lifecycle::State & previous_state) override;
-    CallbackReturn on_cleanup(const rclcpp_lifecycle::State & previous_state) override;
-    CallbackReturn on_shutdown(const rclcpp_lifecycle::State & previous_state) override;
+    /**
+     * @brief Build the tree, wire the adapters and start ticking.
+     * @throws std::runtime_error when the BehaviorTree project cannot be loaded.
+     *
+     * Separate from the constructor because registering ROS BT plugins needs
+     * shared_from_this(), which is not available until construction has finished.
+     */
+    void initialize();
 
 private:
-    /**
-     * @brief Build the tree and wire the adapters, subscriptions and services.
-     * @throws std::runtime_error when the BehaviorTree project cannot be loaded.
-     */
-    void build();
     void registerBehaviorTree();
-
-    /** @brief Stop ticking, cancel the mission and halt the tree. Safe to call twice. */
-    void stopMission(const std::string & reason);
-    /** @brief Drop everything build() built. Safe on a partially configured node. */
-    void releaseResources();
-
-    /** @brief rclcpp pre-shutdown hook: run the shutdown transition while ROS still works. */
-    void onPreShutdown();
-
-    bool isActive() const;
-
     void timerCb();
 
     void motionLockCb(const std_msgs::msg::Bool::SharedPtr msg);
@@ -121,17 +88,9 @@ private:
     std::shared_ptr<mission_manager::ParamListener> param_listener_;
     mission_manager::Params params_;
 
-    // Serialises the timer, the services and the lifecycle callbacks. They all run on the
-    // executor thread, except the pre-shutdown hook, which runs on rclcpp's signal thread
-    // and must not tear the use case down under a tick in progress.
-    std::mutex mutex_;
-    std::unique_ptr<rclcpp::PreShutdownCallbackHandle> pre_shutdown_handle_;
-
-    // Recreated on every configure: a factory rejects a second registration of the same
-    // plugin, so reusing it would make configure -> cleanup -> configure throw.
-    std::unique_ptr<BT::BehaviorTreeFactory> factory_;
+    BT::BehaviorTreeFactory factory_;
     // Handle the BT leaves get as "node". rover_navigation's conditions and nav2_behavior_tree's
-    // plugins read a nav2::LifecycleNode (Nav 2 1.5), which this node is not.
+    // plugins read a nav2::LifecycleNode (Nav 2 1.5), which this rclcpp::Node is not.
     nav2::LifecycleNode::SharedPtr bt_node_;
     std::unique_ptr<BehaviorTreeRunner> mission_tree_runner_;
     std::unique_ptr<application::RunMissionUseCase> run_mission_use_case_;

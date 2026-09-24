@@ -15,8 +15,6 @@
 #ifndef ROVER_NAVIGATION_DOMAIN_PORTS_MAP_SAVER_PORT_HPP_
 #define ROVER_NAVIGATION_DOMAIN_PORTS_MAP_SAVER_PORT_HPP_
 
-#include <functional>
-
 #include "rover_navigation/domain/map_autosave_policy.hpp"
 
 namespace rover_navigation::domain::ports
@@ -25,24 +23,19 @@ namespace rover_navigation::domain::ports
 /**
  * @brief Outbound port for persisting the current map.
  *
- * Implemented in infrastructure by a nav2_msgs/srv/SaveMap client. Saving is asynchronous:
- * the saver is reached now, but the write succeeds or fails later.
+ * Implemented in infrastructure by a nav2_msgs/srv/SaveMap client. The use case only needs
+ * to know whether the request could be dispatched, not how.
  */
 class MapSaverPort
 {
 public:
     virtual ~MapSaverPort() = default;
 
-    /** @brief Called with whether the saver actually wrote the map. */
-    using SaveDoneCallback = std::function<void(bool written)>;
-
     /**
      * @brief Request a map save.
-     * @param on_done Called once the saver answers. Never called when this returns false,
-     *        and may never be called if the saver goes silent.
      * @return false when the saver is unreachable, so the caller can back off.
      */
-    virtual bool save(const MapSaveRequest & request, SaveDoneCallback on_done) = 0;
+    virtual bool save(const MapSaveRequest & request) = 0;
 };
 
 }  // namespace rover_navigation::domain::ports

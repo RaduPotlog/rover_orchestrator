@@ -22,7 +22,6 @@ namespace rover_mission_manager::application
 
 using domain::MissionAction;
 using domain::MissionState;
-using domain::ports::DispatchResult;
 using domain::ports::NavigationResult;
 
 RunMissionUseCase::RunMissionUseCase(
@@ -72,19 +71,12 @@ void RunMissionUseCase::driveCurrentWaypoint()
         return;
     }
 
-    switch (navigation_->goTo(mission_.currentWaypoint())) {
-        case DispatchResult::kDispatched:
-            goal_in_flight_ = true;
-            break;
-
-        case DispatchResult::kNotReady:
-            // Nothing in flight: the next tick sees kIdle and tries again.
-            break;
-
-        case DispatchResult::kUnreachable:
-            mission_.fail("navigator unreachable");
-            break;
+    if (!navigation_->goTo(mission_.currentWaypoint())) {
+        mission_.fail("navigator unreachable");
+        return;
     }
+
+    goal_in_flight_ = true;
 }
 
 void RunMissionUseCase::tick(const domain::RoverConditions & conditions)

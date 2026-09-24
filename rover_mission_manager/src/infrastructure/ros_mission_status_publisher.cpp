@@ -40,15 +40,12 @@ uint8_t toMsgState(domain::MissionState state)
 }  // namespace
 
 RosMissionStatusPublisher::RosMissionStatusPublisher(
-    rclcpp_lifecycle::LifecycleNode * node,
-    const std::string & status_topic,
-    const std::string & state_topic)
+    rclcpp::Node * node, const std::string & status_topic, const std::string & state_topic)
 : node_(node)
 {
     const auto latched = rclcpp::QoS(rclcpp::KeepLast(1)).reliable().transient_local();
-    publisher_ = rclcpp::create_publisher<std_msgs::msg::String>(*node_, status_topic, latched);
-    state_publisher_ =
-        rclcpp::create_publisher<rover_msgs::msg::MissionState>(*node_, state_topic, latched);
+    publisher_ = node_->create_publisher<std_msgs::msg::String>(status_topic, latched);
+    state_publisher_ = node_->create_publisher<rover_msgs::msg::MissionState>(state_topic, latched);
 }
 
 void RosMissionStatusPublisher::publish(const domain::Mission & mission)

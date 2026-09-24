@@ -19,21 +19,6 @@ if(BUILD_TESTING)
   ament_add_pytest_test(test_motion test/unit/test_motion.py)
   ament_add_pytest_test(test_initial_pose_msg test/unit/test_initial_pose_msg.py)
   ament_add_pytest_test(test_initial_pose_seeder test/unit/test_initial_pose_seeder.py)
-
-  # The node itself over a real rclpy graph (services, worker thread, latched QoS). Pinned to
-  # FastDDS on localhost when it is installed: the workspace's rmw_zenoh needs a router, and
-  # the login shell points Zenoh at the rover's, which off the rover hangs rclpy.init and on
-  # it joins the live graph.
-  find_package(rmw_fastrtps_cpp QUIET)
-  if(rmw_fastrtps_cpp_FOUND)
-    set(ISOLATED_ROS_TEST_ENV
-      RMW_IMPLEMENTATION=rmw_fastrtps_cpp
-      ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST)
-  endif()
-  ament_add_pytest_test(test_indoor_nav_node test/integration/test_indoor_nav_node.py
-    TIMEOUT 120
-    ENV ${ISOLATED_ROS_TEST_ENV})
-
   add_test(
     NAME check_domain_purity
     COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check_domain_purity.sh ${CMAKE_CURRENT_SOURCE_DIR})

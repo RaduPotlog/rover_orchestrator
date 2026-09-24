@@ -21,7 +21,6 @@
 #include "rover_mission_manager/infrastructure/mission_request.hpp"
 
 using rover_mission_manager::infrastructure::missionFromRequest;
-using rover_mission_manager::infrastructure::stripLeadingSlash;
 using rover_msgs::srv::SetMission;
 
 namespace
@@ -105,13 +104,4 @@ TEST(MissionRequest, RejectsNonFiniteOrZeroOrientation)
     zero_q.waypoints.push_back(pose("", 0.0, 0.0, 0.0));
     zero_q.waypoints[0].pose.orientation.w = 0.0;
     EXPECT_FALSE(missionFromRequest(zero_q, "rover/map", "x", error).has_value());
-}
-
-TEST(MissionRequest, StripsLeadingSlashesFromFrameIds)
-{
-    EXPECT_EQ(stripLeadingSlash("/rover/map"), "rover/map");
-    EXPECT_EQ(stripLeadingSlash("//rover/map"), "rover/map");
-    EXPECT_EQ(stripLeadingSlash("rover/map"), "rover/map");
-    EXPECT_EQ(stripLeadingSlash("/"), "");
-    EXPECT_EQ(stripLeadingSlash(""), "");
 }

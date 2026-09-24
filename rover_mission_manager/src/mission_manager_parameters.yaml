@@ -1,14 +1,5 @@
 mission_manager:
 
-  autostart:
-    type: bool
-    default_value: true
-    description: >
-      Configure and activate the node as soon as it starts. Set false to leave it
-      unconfigured for an external lifecycle manager (`ros2 lifecycle set`, or a
-      nav2_lifecycle_manager with bond_timeout 0.0: this node does not bond).
-    read_only: true
-
   bt_project_path:
     type: string
     default_value: ""
@@ -42,12 +33,8 @@ mission_manager:
     type: string_array
     default_value: []
     description: >
-      BehaviorTree plugin libraries that need the ROS node handle on the blackboard, which
-      holds a helper nav2::LifecycleNode (`<name>_bt`). That helper is on no executor: a leaf
-      must spin its own callback group, as nav2_behavior_tree's action, service and topic
-      leaves do (BtActionNode/BtServiceNode spin theirs inside tick()). A leaf that expects
-      the host to spin the node, or that reads bt_navigator-only blackboard entries such as
-      `tf_buffer` or `goal`, will not work here.
+      BehaviorTree plugin libraries that need the ROS node handle on the blackboard. These are
+      registered after `node` is seeded, so nav2_behavior_tree plugins can find it.
 
   motion_lock_topic:
     type: string

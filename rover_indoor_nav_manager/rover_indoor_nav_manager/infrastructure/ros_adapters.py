@@ -23,10 +23,6 @@ from ..domain.ports import IndoorNavObserver, MapSaver, RobotPoseSource
 
 LATCHED = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
                      durability=DurabilityPolicy.TRANSIENT_LOCAL)
-# A one-shot command, not state: reliable so AMCL gets it, volatile so a later AMCL (after a
-# map switch) never picks up a stale seed. Matches RViz's own 2D Pose Estimate publisher.
-INITIAL_POSE_QOS = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
-                              durability=DurabilityPolicy.VOLATILE)
 
 
 def yaw_from_quaternion(q) -> float:
@@ -193,8 +189,7 @@ class RosInitialPoseSeeder:
         self._frame = frame
         self._pose_source = pose_source
         self._timeout = timeout
-        self._pub = node.create_publisher(
-            PoseWithCovarianceStamped, 'initialpose', INITIAL_POSE_QOS)
+        self._pub = node.create_publisher(PoseWithCovarianceStamped, 'initialpose', 1)
         self._generation = 0
         self._lock = threading.Lock()
 

@@ -20,24 +20,6 @@
 namespace rover_navigation
 {
 
-namespace
-{
-
-// Every port declares a default, so getInput only fails on a value that does not parse (say
-// timeout="abc"). Fail the tree build then rather than run on the member default unnoticed.
-template<typename T>
-void readInput(const BT::TreeNode & node, const std::string & port, T & value)
-{
-  const auto result = node.getInput<T>(port);
-  if (!result) {
-    throw BT::RuntimeError(
-      node.name() + ": invalid input [" + port + "]: " + result.error());
-  }
-  value = result.value();
-}
-
-}  // namespace
-
 IsMotionLocked::IsMotionLocked(const std::string & condition_name, const BT::NodeConfig & conf)
 : BT::ConditionNode(condition_name, conf),
   motion_locked_(true),
@@ -46,8 +28,8 @@ IsMotionLocked::IsMotionLocked(const std::string & condition_name, const BT::Nod
   topic_("motion_lock"),
   timeout_(0.5)
 {
-  readInput(*this, "topic", topic_);
-  readInput(*this, "timeout", timeout_);
+  getInput("topic", topic_);
+  getInput("timeout", timeout_);
 
   node_ = config().blackboard->get<nav2::LifecycleNode::SharedPtr>("node");
 

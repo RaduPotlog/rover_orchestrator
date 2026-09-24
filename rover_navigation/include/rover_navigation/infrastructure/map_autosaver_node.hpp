@@ -30,11 +30,6 @@ namespace rover_navigation::infrastructure
  *
  * Only useful while SLAM is running (`localization_source:=slam`); with a static map server
  * there is nothing to save. bringup.launch.py starts it only in that mode.
- *
- * A plain node rather than a lifecycle one: it holds no hardware and no in-flight action
- * that must be stopped on the way out. It only has a timer and a service client, and a save
- * interrupted by shutdown is simply repeated by the next run. Nothing needs to pause it
- * separately from slam_toolbox either, since bringup starts and stops both together.
  */
 class MapAutosaverNode : public rclcpp::Node
 {
