@@ -19,5 +19,7 @@ repositories:
   rover_pointcloud_crop_box:
     type: git
     url: https://github.com/RaduPotlog/rover_pointcloud_crop_box.git
-    version: master
+    # TEMPORARY (rover_zenoh_improvements): the crop box's best-effort subscription fix lives on this branch.
+    # Set back to master once it is merged.
+    version: rover_zenoh_improvements
 

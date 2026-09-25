@@ -29,8 +29,8 @@ from launch.substitutions import (
     PathJoinSubstitution,
     PythonExpression,
 )
-from launch_ros.actions import Node, PushRosNamespace
-from launch_ros.descriptions import ParameterFile
+from launch_ros.actions import LoadComposableNodes, Node, PushRosNamespace
+from launch_ros.descriptions import ComposableNode, ParameterFile
 from launch_ros.substitutions import FindPackageShare
 from nav2_common.launch import ReplaceString, RewrittenYaml
 
@@ -287,9 +287,37 @@ def generate_launch_description():
             # There is deliberately NO cloud-to-scan conversion here -- rover_rs16_lidar owns
             # that conversion and already publishes <ns>/scan, so a second one would
             # double-publish the topic.
+            #
+            # With composition it is loaded into nav2_container, next to the costmaps that
+            # consume its output: the filtered cloud (~4-5 MB/s) then never leaves the process,
+            # where as its own process it crossed the Zenoh router a second time.
+            LoadComposableNodes(
+                condition=IfCondition(
+                    PythonExpression(
+                        [
+                            "'", observation_topic_type, "' == 'pointcloud' and '",
+                            use_composition, "'.lower() == 'true'",
+                        ]
+                    )
+                ),
+                target_container=(namespace, "/", "nav2_container"),
+                composable_node_descriptions=[
+                    ComposableNode(
+                        package="pointcloud_crop_box",
+                        plugin="pointcloud_crop_box::PointCloudCropBoxNode",
+                        name="pointcloud_crop_box",
+                        parameters=[configured_params],
+                    ),
+                ],
+            ),
             Node(
                 condition=IfCondition(
-                    PythonExpression(["'", observation_topic_type, "' == 'pointcloud'"])
+                    PythonExpression(
+                        [
+                            "'", observation_topic_type, "' == 'pointcloud' and '",
+                            use_composition, "'.lower() != 'true'",
+                        ]
+                    )
                 ),
                 package="pointcloud_crop_box",
                 executable="pointcloud_crop_box_node",

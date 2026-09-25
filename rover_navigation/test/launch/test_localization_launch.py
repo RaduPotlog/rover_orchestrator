@@ -261,3 +261,58 @@ def test_indoor_localization_swaps_slam_and_amcl():
     # AMCL on, and out of nav2_container so stopping this launch never touches Nav 2.
     assert args["localization_source"] == "indoor"
     assert args["use_composition"] == "False"
+
+
+def _crop_box_actions(use_composition, observation_topic_type):
+    """How bringup starts pointcloud_crop_box: [('node', exe)] / [('load', container, plugin)]."""
+    from launch.utilities import normalize_to_list_of_substitutions
+
+    launch_description = _nav_launch("bringup.launch.py").generate_launch_description()
+    context = LaunchContext()
+    context.launch_configurations.update({
+        "localization_source": "odom",
+        "namespace": "rover",
+        "use_composition": use_composition,
+        "observation_topic_type": observation_topic_type,
+    })
+    found = []
+    for entity in launch_description.entities:
+        if not isinstance(entity, GroupAction):
+            continue
+        for action in entity._GroupAction__actions:
+            condition = action.condition
+            if condition is not None and not condition.evaluate(context):
+                continue
+            if isinstance(action, Node) and _perform(context, action.node_package) == "pointcloud_crop_box":
+                found.append(("node", _perform(context, action.node_executable)))
+            elif isinstance(action, LoadComposableNodes):
+                for description in action._LoadComposableNodes__composable_node_descriptions:
+                    if _perform(context, description.package) == "pointcloud_crop_box":
+                        found.append((
+                            "load",
+                            _perform(context, normalize_to_list_of_substitutions(
+                                action._LoadComposableNodes__target_container)),
+                            _perform(context, description.node_plugin),
+                        ))
+    return found
+
+
+@pytest.mark.parametrize("use_composition", ["True", "true"])
+def test_crop_box_loads_into_nav2_container_when_composed(use_composition):
+    # In the container, next to the costmaps that consume the filtered cloud, so the cloud
+    # never crosses the Zenoh router a second time.
+    assert _crop_box_actions(use_composition, "pointcloud") == [
+        ("load", "rover/nav2_container", "pointcloud_crop_box::PointCloudCropBoxNode"),
+    ]
+
+
+@pytest.mark.parametrize("use_composition", ["False", "false"])
+def test_crop_box_is_its_own_process_without_composition(use_composition):
+    assert _crop_box_actions(use_composition, "pointcloud") == [
+        ("node", "pointcloud_crop_box_node"),
+    ]
+
+
+@pytest.mark.parametrize("use_composition", ["True", "False"])
+def test_no_crop_box_in_laserscan_mode(use_composition):
+    assert _crop_box_actions(use_composition, "laserscan") == []

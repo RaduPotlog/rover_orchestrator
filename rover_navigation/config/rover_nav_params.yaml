@@ -164,7 +164,8 @@
       target_frame: <namespace>/base_link
       message_type: pointcloud
       negative: false
-      visualize_crop_boxes: true
+      # Off: the markers were published with every cloud (10 Hz) and nothing displays them.
+      visualize_crop_boxes: false
       crop_boxes_names: [robot_box]
       crop_boxes:
         robot_box:
@@ -214,7 +215,9 @@
           update_footprint_enabled: true
           combination_method: 1
           origin_z: 0.0
-          publish_voxel_map: true
+          # Off: nothing subscribes to <costmap>/voxel_grid, and building it walks the whole
+          # voxel grid on every update. Turn on only to inspect the voxels in RViz.
+          publish_voxel_map: false
           transform_tolerance: 0.2
           mapping_mode: false
           map_save_duration: 60.0
@@ -290,7 +293,10 @@
         transform_tolerance: 0.1
 
         update_frequency: 1.0
-        publish_frequency: 1.0
+        # Only the drive UI's costmap overlay reads it, as a full grid (it ignores
+        # costmap_updates, so always_send_full_costmap stays on): 0.5 Hz halves what crosses the
+        # Zenoh router and the websocket, and the planner reads the costmap in-process anyway.
+        publish_frequency: 0.5
 
         resolution: 0.05
 
@@ -315,7 +321,9 @@
           update_footprint_enabled: true
           combination_method: 1
           origin_z: 0.0
-          publish_voxel_map: true
+          # Off: nothing subscribes to <costmap>/voxel_grid, and building it walks the whole
+          # voxel grid on every update. Turn on only to inspect the voxels in RViz.
+          publish_voxel_map: false
           transform_tolerance: 0.2
           mapping_mode: false
           map_save_duration: 60.0
