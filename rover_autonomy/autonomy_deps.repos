@@ -19,7 +19,5 @@ repositories:
   rover_pointcloud_crop_box:
     type: git
     url: https://github.com/RaduPotlog/rover_pointcloud_crop_box.git
-    # TEMPORARY (rover-clean-arch-ultra-code-effort-01): the crop box's best-effort subscription
-    # fix lives on this branch, as in rover_docker's image refs. Set back to master once it is merged.
-    version: rover-clean-arch-ultra-code-effort-01
+    version: master
 
