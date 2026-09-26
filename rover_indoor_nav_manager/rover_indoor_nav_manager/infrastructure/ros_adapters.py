@@ -78,34 +78,20 @@ class RosMapLoader:
 
 
 class TfPoseSource(RobotPoseSource):
-    """map -> base_link, listening to TF only for the duration of each lookup.
 
-    The pose is needed every pose_record_period and on events (stop, place, switch), while
-    /tf arrives at ~90 Hz. A permanent listener made every one of those messages wake the rclpy
-    executor, most of this node's CPU. Each lookup now subscribes with a fresh buffer (so a
-    localization that has stopped publishing can't answer from stale cache), waits up to
-    `window` seconds for the chain, and unsubscribes. Called from the worker thread only.
-    """
-
-    def __init__(self, node: Node, map_frame: str, base_frame: str, window: float = 0.5):
-        self._node = node
+    def __init__(self, node: Node, map_frame: str, base_frame: str):
+        self._buffer = tf2_ros.Buffer()
+        self._listener = tf2_ros.TransformListener(self._buffer, node)
         self._map_frame = map_frame
         self._base_frame = base_frame
-        self._window = Duration(seconds=window)
-        self._lock = threading.Lock()
 
     def current_pose(self):
-        with self._lock:
-            buffer = tf2_ros.Buffer()
-            listener = tf2_ros.TransformListener(buffer, self._node)
-            try:
-                t = buffer.lookup_transform(
-                    self._map_frame, self._base_frame, RclpyTime(), timeout=self._window)
-            except (tf2_ros.LookupException, tf2_ros.ConnectivityException,
-                    tf2_ros.ExtrapolationException):
-                return None
-            finally:
-                listener.unregister()
+        try:
+            t = self._buffer.lookup_transform(
+                self._map_frame, self._base_frame, RclpyTime(), timeout=Duration(seconds=0.2))
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException):
+            return None
         tr = t.transform.translation
         return Pose2D(tr.x, tr.y, yaw_from_quaternion(t.transform.rotation))
 
