@@ -17,6 +17,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -30,7 +31,15 @@
 namespace rover_mission_manager::infrastructure
 {
 
-/** @brief NavigationPort backed by Nav 2's `navigate_to_pose` action. */
+/**
+ * @brief NavigationPort backed by Nav 2's `navigate_to_pose` action.
+ *
+ * Every goTo() and cancel() starts a new generation. Action-client callbacks carry the
+ * generation of the goal they belong to and are dropped once it is no longer current, so a
+ * late result from a cancelled or replaced goal cannot overwrite the state of the one that
+ * replaced it. Nav 2's own tree aborts on the same motion lock and lidar conditions the
+ * manager holds on, so that ABORTED routinely lands after the manager's cancel().
+ */
 class Nav2NavigationAdapter : public domain::ports::NavigationPort
 {
 public:
@@ -48,8 +57,9 @@ public:
     domain::ports::NavigationResult result() const override;
 
 private:
-    void goalResponseCb(const GoalHandle::SharedPtr & goal_handle);
-    void resultCb(const GoalHandle::WrappedResult & wrapped_result);
+    void goalResponseCb(const GoalHandle::SharedPtr & goal_handle, std::uint64_t generation);
+    void resultCb(const GoalHandle::WrappedResult & wrapped_result, std::uint64_t generation);
+    std::uint64_t currentGeneration() const;
 
     rclcpp::Node * node_;
     rclcpp_action::Client<NavigateToPose>::SharedPtr client_;
@@ -58,8 +68,12 @@ private:
 
     // Written from action-client callbacks, read from the manager's timer thread.
     std::atomic<domain::ports::NavigationResult> result_;
+
+    // Guards generation_ and goal_handle_, and makes a callback's "is this still my goal?"
+    // check atomic with the result_ write that follows it.
+    mutable std::mutex mutex_;
+    std::uint64_t generation_{0};
     GoalHandle::SharedPtr goal_handle_;
-    mutable std::mutex goal_handle_mutex_;
 };
 
 }  // namespace rover_mission_manager::infrastructure

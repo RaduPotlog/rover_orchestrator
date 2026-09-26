@@ -15,6 +15,7 @@
 #include "rover_mission_manager/infrastructure/nav2_navigation_adapter.hpp"
 
 #include <cmath>
+#include <cstdint>
 #include <mutex>
 #include <string>
 #include <utility>
@@ -56,37 +57,70 @@ bool Nav2NavigationAdapter::goTo(const domain::Waypoint & waypoint)
     goal.pose.pose.orientation.z = std::sin(waypoint.yaw / 2.0);
     goal.pose.pose.orientation.w = std::cos(waypoint.yaw / 2.0);
 
+    std::uint64_t generation = 0;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        generation = ++generation_;
+        goal_handle_.reset();
+        result_ = NavigationResult::kPending;
+    }
+
     rclcpp_action::Client<NavigateToPose>::SendGoalOptions options;
     options.goal_response_callback =
-        [this](const GoalHandle::SharedPtr & handle) { goalResponseCb(handle); };
+        [this, generation](const GoalHandle::SharedPtr & handle) {
+            goalResponseCb(handle, generation);
+        };
     options.result_callback =
-        [this](const GoalHandle::WrappedResult & wrapped) { resultCb(wrapped); };
+        [this, generation](const GoalHandle::WrappedResult & wrapped) {
+            resultCb(wrapped, generation);
+        };
 
-    result_ = NavigationResult::kPending;
     client_->async_send_goal(goal, options);
 
     return true;
 }
 
-void Nav2NavigationAdapter::goalResponseCb(const GoalHandle::SharedPtr & goal_handle)
+void Nav2NavigationAdapter::goalResponseCb(
+    const GoalHandle::SharedPtr & goal_handle, std::uint64_t generation)
 {
     {
-        std::lock_guard<std::mutex> lock(goal_handle_mutex_);
-        goal_handle_ = goal_handle;
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        if (generation == generation_) {
+            goal_handle_ = goal_handle;
+
+            if (goal_handle == nullptr) {
+                result_ = NavigationResult::kFailed;
+            }
+        } else if (goal_handle == nullptr) {
+            return;
+        }
     }
 
     if (goal_handle == nullptr) {
         RCLCPP_WARN(node_->get_logger(), "navigate_to_pose goal was rejected by the server.");
-        result_ = NavigationResult::kFailed;
+        return;
+    }
+
+    if (generation != currentGeneration()) {
+        // Cancelled or replaced before the server answered, when there was no handle to
+        // cancel yet. Cancel it now, or Nav 2 keeps driving a goal nobody is waiting on.
+        client_->async_cancel_goal(goal_handle);
     }
 }
 
-void Nav2NavigationAdapter::resultCb(const GoalHandle::WrappedResult & wrapped_result)
+void Nav2NavigationAdapter::resultCb(
+    const GoalHandle::WrappedResult & wrapped_result, std::uint64_t generation)
 {
-    {
-        std::lock_guard<std::mutex> lock(goal_handle_mutex_);
-        goal_handle_.reset();
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    if (generation != generation_) {
+        // A goal we already cancelled or replaced. Its ABORTED or CANCELED says nothing
+        // about the goal in flight now, if any.
+        return;
     }
+
+    goal_handle_.reset();
 
     switch (wrapped_result.code) {
         case rclcpp_action::ResultCode::SUCCEEDED:
@@ -94,9 +128,10 @@ void Nav2NavigationAdapter::resultCb(const GoalHandle::WrappedResult & wrapped_r
             break;
 
         case rclcpp_action::ResultCode::CANCELED:
-            // A cancel is always our own doing (hold, abort or a new mission), and the use
-            // case has already moved on. Reporting kFailed here would abort that mission.
-            result_ = NavigationResult::kIdle;
+            // Not ours -- ours bump the generation first -- so someone else cancelled the goal
+            // (a second client, or an operator on the CLI). The mission did not reach the
+            // waypoint, and treating it as idle would silently re-dispatch it.
+            result_ = NavigationResult::kFailed;
             break;
 
         case rclcpp_action::ResultCode::ABORTED:
@@ -111,15 +146,22 @@ void Nav2NavigationAdapter::cancel()
 {
     GoalHandle::SharedPtr handle;
     {
-        std::lock_guard<std::mutex> lock(goal_handle_mutex_);
-        handle = goal_handle_;
+        std::lock_guard<std::mutex> lock(mutex_);
+        ++generation_;
+        handle = std::move(goal_handle_);
+        goal_handle_.reset();
+        result_ = NavigationResult::kIdle;
     }
 
     if (handle != nullptr) {
         client_->async_cancel_goal(handle);
     }
+}
 
-    result_ = NavigationResult::kIdle;
+std::uint64_t Nav2NavigationAdapter::currentGeneration() const
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    return generation_;
 }
 
 NavigationResult Nav2NavigationAdapter::result() const { return result_.load(); }

@@ -92,6 +92,10 @@ if(BUILD_TESTING)
     ament_add_gtest(test_mission_request test/unit/test_mission_request.cpp)
     target_link_libraries(test_mission_request ${PROJECT_NAME}_ros)
 
+    ament_add_gtest(test_nav2_navigation_adapter
+        test/integration/test_nav2_navigation_adapter.cpp TIMEOUT 120)
+    target_link_libraries(test_nav2_navigation_adapter ${PROJECT_NAME}_ros)
+
     # Mechanically enforce that domain/ never grows a ROS or BehaviorTree dependency.
     add_test(
         NAME check_domain_purity
