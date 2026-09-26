@@ -28,6 +28,7 @@
 
 #include "rover_mission_manager/domain/mission.hpp"
 #include "rover_mission_manager/domain/mission_policy.hpp"
+#include "rover_mission_manager/infrastructure/battery_reading.hpp"
 #include "rover_mission_manager/infrastructure/mission_request.hpp"
 #include "rover_mission_manager/infrastructure/nav2_navigation_adapter.hpp"
 #include "rover_mission_manager/infrastructure/ros_mission_status_publisher.hpp"
@@ -189,9 +190,8 @@ void MissionManagerNode::motionLockCb(const std_msgs::msg::Bool::SharedPtr msg)
 
 void MissionManagerNode::batteryCb(const sensor_msgs::msg::BatteryState::SharedPtr msg)
 {
-    // BatteryState::percentage is 0..1 in REP-0147; NaN means "not measured".
-    if (!std::isnan(msg->percentage)) {
-        battery_fraction_ = static_cast<double>(msg->percentage);
+    if (const auto fraction = measuredBatteryFraction(*msg)) {
+        battery_fraction_ = *fraction;
     }
 }
 

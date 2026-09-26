@@ -40,6 +40,7 @@ set_property(TARGET ${PROJECT_NAME}_core PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 # Infrastructure: ROS 2 and BehaviorTree adapters.
 add_library(${PROJECT_NAME}_ros STATIC
+    src/infrastructure/battery_reading.cpp
     src/infrastructure/mission_manager_node.cpp
     src/infrastructure/mission_request.cpp
     src/infrastructure/nav2_navigation_adapter.cpp
@@ -91,6 +92,9 @@ if(BUILD_TESTING)
 
     ament_add_gtest(test_mission_request test/unit/test_mission_request.cpp)
     target_link_libraries(test_mission_request ${PROJECT_NAME}_ros)
+
+    ament_add_gtest(test_battery_reading test/unit/test_battery_reading.cpp)
+    target_link_libraries(test_battery_reading ${PROJECT_NAME}_ros)
 
     ament_add_gtest(test_nav2_navigation_adapter
         test/integration/test_nav2_navigation_adapter.cpp TIMEOUT 120)
