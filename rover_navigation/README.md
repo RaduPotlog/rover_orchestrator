@@ -173,8 +173,13 @@ The Nav 2 global frame depends on `localization_source` (see below); the robot f
 always `<namespace>/base_link`, and the local costmap always stays on `<namespace>/odom`
 because it is a rolling window. Plugins in use:
 
-- Controller: `nav2_mppi_controller::MPPIController` (`DiffDrive` motion model,
-  `vx_max 0.8`, `wz_max 1.0`, 10 Hz).
+- Controller: `nav2_rotation_shim_controller::RotationShimController` wrapping
+  `nav2_mppi_controller::MPPIController` (`DiffDrive` motion model, `vx_max 0.8`, `wz_max 1.0`,
+  10 Hz). MPPI drives; the shim only takes over the final in-place turn to the goal heading, at
+  a fixed 1.0 rad/s, because the skid-steer stalls at the low yaw rates MPPI settles on there.
+  MPPI's parameters live under `FollowPath.primary_controller` (Nav 2 Kilted+ layout).
+- Progress checker: `nav2_controller::PoseProgressChecker`, so turning in place counts as
+  progress (0.5 m or 0.5 rad within 10 s).
 - Planner: `nav2_smac_planner::SmacPlanner2D`.
 - Costmap layers: `spatio_temporal_voxel_layer` (`stvl_layer`) + inflation on both costmaps,
   plus a static layer on the global costmap. `stvl_layer` is what marks and clears from the
@@ -367,9 +372,11 @@ The goal `frame_id` must match the mode: **`rover/odom`** with `localization_sou
   evidence along their axis. `max_beams: 60` over a 20 m scan is on the low side for that;
   raise it to 90-120 before touching `sigma_hit` or `z_rand`.
 - **`consider_footprint: true` costs CPU.** MPPI's footprint sweep over 800x40 trajectory
-  points is the dominant cost in the control loop. If `ros2 topic hz /<ns>/nav_cmd_vel_stamped`
-  falls below the 10 Hz `controller_frequency`, set `CostCritic.consider_footprint` back to
-  `false` and accept point-check collision detection.
+  points is the dominant cost in the control loop. If `ros2 topic hz /<ns>/cmd_vel_nav` (the
+  controller's own output; `nav_cmd_vel_stamped` is the velocity smoother's fixed 20 Hz stream)
+  falls below the 10 Hz `controller_frequency`, set
+  `FollowPath.primary_controller.CostCritic.consider_footprint` back to `false` and accept
+  point-check collision detection.
 - **Pass an absolute `map:=` path.** The bare-filename default is resolved against the
   working directory of the process, not the package share directory.
 - **Servers stay `inactive` / `unconfigured` and the log repeats `Timed out waiting for

@@ -39,11 +39,15 @@
       use_realtime_priority: false
 
       # Progress checker parameters
+      # PoseProgressChecker, not Simple: turning in place to the goal heading moves the rover
+      # 0 m, and SimpleProgressChecker aborted FollowPath every 10 s while the rover was turning
+      # correctly. required_movement_angle counts 0.5 rad of rotation as progress too.
       progress_checker_plugin: progress_checker
       progress_checker:
+        plugin: nav2_controller::PoseProgressChecker
         movement_time_allowance: 10.0
-        plugin: nav2_controller::SimpleProgressChecker
         required_movement_radius: 0.5
+        required_movement_angle: 0.5
 
       # Goal checker parameters
       goal_checker_plugins: [goal_checker]
@@ -53,102 +57,134 @@
         xy_goal_tolerance: 0.25
         yaw_goal_tolerance: 0.15
 
-      # MPPI controller
+      # RotationShim around MPPI. The shim only takes over for the final turn to the goal
+      # heading (rotate_to_goal_heading); MPPI drives everything else as before.
+      #
+      # Why: this skid-steer does not break static friction when turning in place at the low
+      # yaw rates MPPI settles on near the goal. Measured on the rover 2026-09-26: at a
+      # commanded wz of 0.40 rad/s the wheels stalled (joint velocity ~0, IMU yaw rate ~0) for
+      # 40 s until the mission failed; at 1.0 rad/s the wheels spun +/-1.6 rad/s and the rover
+      # turned at ~0.52 rad/s.
+      #
+      # Nav 2 Kilted+ layout: the primary controller's parameters live under
+      # FollowPath.primary_controller, not next to the shim's own.
       controller_plugins: [FollowPath]
       FollowPath:
-        plugin: nav2_mppi_controller::MPPIController
-        time_steps: 40
-        model_dt: 0.1
-        batch_size: 800
-        vx_std: 0.4
-        vy_std: 0.0
-        wz_std: 0.5
-        vx_max: 0.8
-        vx_min: -0.5
-        vy_max: 0.0
-        wz_max: 1.0
-        # Must stay consistent with velocity_smoother max_accel / max_decel below,
-        # otherwise MPPI plans stops the hardware cannot execute and overshoots.
-        ax_max: 1.5
-        ax_min: -1.5
-        ay_max: 0.0
-        az_max: 2.0
-        iteration_count: 1
-        prune_distance: 2.5
-        transform_tolerance: 0.1
-        temperature: 0.3
-        gamma: 0.015
-        # Nav 2 1.5.x: motion_model names a plugin *namespace*, not an enum value.
-        # Optimizer::setMotionModel() resolves <controller>.<motion_model>.plugin via
-        # get_plugin_type_param(), which throws if the block below is missing.
-        motion_model: DiffDrive
-        DiffDrive:
-          plugin: mppi::DiffDriveMotionModel
-        regenerate_noises: true
-        visualize: false
-        AckermannConstraints:
-          min_turning_r: 0.05
-        critics: [ConstraintCritic, CostCritic, GoalCritic, GoalAngleCritic, PathAlignCritic, PathFollowCritic, PathAngleCritic, PreferForwardCritic]
-        ConstraintCritic:
-          # Keeps MPPI inside its own declared vx_max / wz_max box; nothing else does.
-          enabled: true
-          cost_power: 1
-          cost_weight: 4.0
-        GoalCritic:
-          enabled: true
-          cost_power: 1
-          cost_weight: 5.0
-          threshold_to_consider: 3.2
-        GoalAngleCritic:
-          enabled: true
-          cost_power: 1
-          cost_weight: 3.0
-          threshold_to_consider: 0.1
-        PreferForwardCritic:
-          enabled: true
-          cost_power: 1
-          cost_weight: 7.0
-          threshold_to_consider: 1.5
-        CostCritic:
-          enabled: true
-          cost_power: 1
-          cost_weight: 3.81
-          critical_cost: 300.0
-          # Full-footprint collision checking, enabled now that rover_rs16_lidar marks the
-          # costmap. The footprint sweep over 800x40 trajectory points is the dominant cost
-          # in the control loop: if `ros2 topic hz <ns>/nav_cmd_vel_stamped` drops below the
-          # 10 Hz controller_frequency on the orchestrator computer, set this back to false
-          # and accept point-check collision detection instead.
-          consider_footprint: true
-          collision_cost: 1000000.0
-          near_goal_distance: 1.0
-        PathAlignCritic:
-          enabled: true
-          cost_power: 1
-          cost_weight: 14.0
-          max_path_occupancy_ratio: 0.05
-          trajectory_point_step: 4
-          threshold_to_consider: 0.5
-          offset_from_furthest: 20
-          use_path_orientations: false
-        PathFollowCritic:
-          enabled: true
-          cost_power: 1
-          cost_weight: 5.0
-          offset_from_furthest: 5
-          threshold_to_consider: 3.2
-        PathAngleCritic:
-          enabled: true
-          cost_power: 1
-          cost_weight: 2.0
-          offset_from_furthest: 4
-          threshold_to_consider: 0.5
-          max_angle_to_furthest: 1.0
-          mode: 0
-        # TwirlingCritic:
-        #   enabled: true
-        #   twirling_cost_power: 1
-        #   twirling_cost_weight: 10.0
+        plugin: nav2_rotation_shim_controller::RotationShimController
+        rotate_to_goal_heading: true
+        # The only in-place rate shown to turn the rover (see above). Do not lower it below the
+        # breakaway rate; wz_max, the velocity_smoother and diff_drive all allow 1.0.
+        rotate_to_heading_angular_vel: 1.0
+        max_angular_accel: 2.0
+        # Must stay false. Closed loop limits each command to the *measured* yaw rate plus
+        # max_angular_accel * dt, and a stalled rover measures 0, so the command would stay
+        # at ~0.2 rad/s and never break it free.
+        closed_loop: false
+        # Above pi, so the shim never rotates to the path heading before driving: MPPI keeps
+        # approaching goals behind the rover in reverse, as before. Set to ~0.785 to make the
+        # rover face the path first instead.
+        angular_dist_threshold: 3.2
+        forward_sampling_distance: 0.5
+        simulate_ahead_time: 1.0
+        rotate_to_heading_once: false
+        use_path_orientations: false
+
+        # MPPI controller
+        primary_controller:
+          plugin: nav2_mppi_controller::MPPIController
+          time_steps: 40
+          model_dt: 0.1
+          batch_size: 800
+          vx_std: 0.4
+          vy_std: 0.0
+          wz_std: 0.5
+          vx_max: 0.8
+          vx_min: -0.5
+          vy_max: 0.0
+          wz_max: 1.0
+          # Must stay consistent with velocity_smoother max_accel / max_decel below,
+          # otherwise MPPI plans stops the hardware cannot execute and overshoots.
+          ax_max: 1.5
+          ax_min: -1.5
+          ay_max: 0.0
+          az_max: 2.0
+          iteration_count: 1
+          prune_distance: 2.5
+          transform_tolerance: 0.1
+          temperature: 0.3
+          gamma: 0.015
+          # Nav 2 1.5.x: motion_model names a plugin *namespace*, not an enum value.
+          # Optimizer::setMotionModel() resolves <controller>.<motion_model>.plugin via
+          # get_plugin_type_param(), which throws if the block below is missing.
+          motion_model: DiffDrive
+          DiffDrive:
+            plugin: mppi::DiffDriveMotionModel
+          regenerate_noises: true
+          visualize: false
+          AckermannConstraints:
+            min_turning_r: 0.05
+          critics: [ConstraintCritic, CostCritic, GoalCritic, GoalAngleCritic, PathAlignCritic, PathFollowCritic, PathAngleCritic, PreferForwardCritic]
+          ConstraintCritic:
+            # Keeps MPPI inside its own declared vx_max / wz_max box; nothing else does.
+            enabled: true
+            cost_power: 1
+            cost_weight: 4.0
+          GoalCritic:
+            enabled: true
+            cost_power: 1
+            cost_weight: 5.0
+            threshold_to_consider: 3.2
+          GoalAngleCritic:
+            enabled: true
+            cost_power: 1
+            cost_weight: 3.0
+            threshold_to_consider: 0.1
+          PreferForwardCritic:
+            enabled: true
+            cost_power: 1
+            cost_weight: 7.0
+            threshold_to_consider: 1.5
+          CostCritic:
+            enabled: true
+            cost_power: 1
+            cost_weight: 3.81
+            critical_cost: 300.0
+            # Full-footprint collision checking, enabled now that rover_rs16_lidar marks the
+            # costmap. The footprint sweep over 800x40 trajectory points is the dominant cost
+            # in the control loop: if `ros2 topic hz <ns>/cmd_vel_nav` drops below the 10 Hz
+            # controller_frequency on the orchestrator computer, set this back to false and
+            # accept point-check collision detection instead. (Not nav_cmd_vel_stamped: that is
+            # the velocity smoother's fixed 20 Hz output and hides a slow controller.)
+            consider_footprint: true
+            collision_cost: 1000000.0
+            near_goal_distance: 1.0
+          PathAlignCritic:
+            enabled: true
+            cost_power: 1
+            cost_weight: 14.0
+            max_path_occupancy_ratio: 0.05
+            trajectory_point_step: 4
+            threshold_to_consider: 0.5
+            offset_from_furthest: 20
+            use_path_orientations: false
+          PathFollowCritic:
+            enabled: true
+            cost_power: 1
+            cost_weight: 5.0
+            offset_from_furthest: 5
+            threshold_to_consider: 3.2
+          PathAngleCritic:
+            enabled: true
+            cost_power: 1
+            cost_weight: 2.0
+            offset_from_furthest: 4
+            threshold_to_consider: 0.5
+            max_angle_to_furthest: 1.0
+            mode: 0
+          # TwirlingCritic:
+          #   enabled: true
+          #   twirling_cost_power: 1
+          #   twirling_cost_weight: 10.0
 
   # Self-filter for the pointcloud path. Only launched when observation_topic_type:=pointcloud
   # (see bringup.launch.py); the default laserscan path does not use it, because STVL's
