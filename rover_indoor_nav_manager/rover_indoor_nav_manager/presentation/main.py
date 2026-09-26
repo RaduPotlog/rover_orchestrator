@@ -19,7 +19,10 @@ def main(args=None):
         signal.signal(signal.SIGINT, signal.default_int_handler)
     rclpy.init(args=args)
     node = IndoorNavNode()
-    executor = MultiThreadedExecutor(num_threads=4)
+    # Two threads: a service handler (one at a time, MutuallyExclusive) may block on the worker,
+    # and the other keeps serving the clients, timers and TF lookups that worker waits on. Each
+    # extra thread costs CPU on every wake-up in rclpy.
+    executor = MultiThreadedExecutor(num_threads=2)
     executor.add_node(node)
     try:
         executor.spin()

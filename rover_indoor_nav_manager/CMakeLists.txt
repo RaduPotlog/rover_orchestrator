@@ -19,6 +19,9 @@ if(BUILD_TESTING)
   ament_add_pytest_test(test_motion test/unit/test_motion.py)
   ament_add_pytest_test(test_initial_pose_msg test/unit/test_initial_pose_msg.py)
   ament_add_pytest_test(test_initial_pose_seeder test/unit/test_initial_pose_seeder.py)
+  ament_add_pytest_test(test_odometry_gate test/unit/test_odometry_gate.py)
+  # The only test here that needs a ROS graph (rclpy + TF over the middleware).
+  ament_add_pytest_test(test_tf_pose_source test/unit/test_tf_pose_source.py TIMEOUT 60)
   add_test(
     NAME check_domain_purity
     COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check_domain_purity.sh ${CMAKE_CURRENT_SOURCE_DIR})

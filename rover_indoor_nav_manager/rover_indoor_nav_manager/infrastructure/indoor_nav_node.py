@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 import math
 import threading
 
+from geometry_msgs.msg import TwistStamped
 from nav_msgs.msg import Odometry
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
 from rclpy.node import Node
@@ -20,6 +21,7 @@ from ..domain.model import DomainError, Pose2D
 from ..domain.motion import StopThresholds
 from .file_map_repository import FileMapRepository
 from .launch_localization_controller import LaunchLocalizationController
+from .odometry_gate import OdometryGate
 from .ros_adapters import (
     place_to_msg,
     RosInitialPoseSeeder,
@@ -63,6 +65,14 @@ class IndoorNavNode(Node):
         self.declare_parameter('stop_linear_threshold', 0.03)
         self.declare_parameter('stop_angular_threshold', 0.05)
         self.declare_parameter('stop_hold_time', 0.5)
+        # Only listen to motion_topic around commanded motion: from the first command on
+        # command_topic (twist_mux's output) until the commands have been quiet this long and
+        # the rover has been still for stop_hold_time. Empty command_topic = always listen,
+        # e.g. to also catch a rover that is pushed by hand.
+        self.declare_parameter('command_topic', 'cmd_vel')
+        self.declare_parameter('odometry_idle_timeout', 5.0)
+        # How long one pose lookup listens to /tf (see TfPoseSource).
+        self.declare_parameter('pose_lookup_window', 0.5)
         # Spread AMCL gets around a remembered pose after a restart (standard deviations).
         self.declare_parameter('restore_sigma_xy', 1.5)
         self.declare_parameter('restore_sigma_yaw', math.pi / 4)
@@ -77,9 +87,15 @@ class IndoorNavNode(Node):
         self._services_group = MutuallyExclusiveCallbackGroup()
         io_group = ReentrantCallbackGroup()
 
+        stop_thresholds = StopThresholds(
+            linear=self.get_parameter('stop_linear_threshold').value,
+            angular=self.get_parameter('stop_angular_threshold').value,
+            hold_time=self.get_parameter('stop_hold_time').value)
+
         self._worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix='indoor_nav')
         pose_source = TfPoseSource(
-            self, ns_frame(namespace, 'map'), ns_frame(namespace, 'base_link'))
+            self, ns_frame(namespace, 'map'), ns_frame(namespace, 'base_link'),
+            window=self.get_parameter('pose_lookup_window').value)
         seeder = RosInitialPoseSeeder(self, ns_frame(namespace, 'map'), pose_source)
         self._controller = LaunchLocalizationController(
             self.get_logger(), namespace.strip('/'), params_file, use_sim_time,
@@ -97,10 +113,7 @@ class IndoorNavNode(Node):
                               self.get_parameter('save_map_timeout').value, io_group),
             robot=pose_source,
             observer=RosObserver(self),
-            stop_thresholds=StopThresholds(
-                linear=self.get_parameter('stop_linear_threshold').value,
-                angular=self.get_parameter('stop_angular_threshold').value,
-                hold_time=self.get_parameter('stop_hold_time').value),
+            stop_thresholds=stop_thresholds,
             restore_sigma_xy=self.get_parameter('restore_sigma_xy').value,
             restore_sigma_yaw=self.get_parameter('restore_sigma_yaw').value)
 
@@ -109,9 +122,19 @@ class IndoorNavNode(Node):
         self._motion_lock = threading.Lock()
         self._motion_sample = None
         self._motion_queued = False
-        self.create_subscription(
-            Odometry, self.get_parameter('motion_topic').value, self._on_odometry,
-            qos_profile_sensor_data, callback_group=io_group)
+        self._io_group = io_group
+        self._odometry_sub = None
+        command_topic = self.get_parameter('command_topic').value
+        if command_topic:
+            self._gate = OdometryGate(
+                stop_thresholds, self.get_parameter('odometry_idle_timeout').value)
+            self.create_subscription(
+                TwistStamped, command_topic, self._on_command, qos_profile_sensor_data,
+                callback_group=io_group)
+            self.create_timer(1.0, self._close_idle_odometry, callback_group=io_group)
+        else:
+            self._gate = None
+            self._open_odometry()
 
         g = self._services_group
         self.create_service(Trigger, 'start_mapping', self._start_mapping, callback_group=g)
@@ -130,11 +153,32 @@ class IndoorNavNode(Node):
         if self.get_parameter('auto_start').value:
             self._worker.submit(self._startup)
 
+    def _now(self) -> float:
+        return self.get_clock().now().nanoseconds * 1e-9
+
+    def _open_odometry(self):
+        self._odometry_sub = self.create_subscription(
+            Odometry, self.get_parameter('motion_topic').value, self._on_odometry,
+            qos_profile_sensor_data, callback_group=self._io_group)
+
+    def _on_command(self, _msg: TwistStamped):
+        with self._motion_lock:
+            opening = self._gate.on_command(self._now())
+            if opening:
+                self._open_odometry()
+
+    def _close_idle_odometry(self):
+        with self._motion_lock:
+            if self._gate.should_close(self._now()) and self._odometry_sub is not None:
+                self.destroy_subscription(self._odometry_sub)
+                self._odometry_sub = None
+
     def _on_odometry(self, msg: Odometry):
         twist = msg.twist.twist
-        sample = (math.hypot(twist.linear.x, twist.linear.y), twist.angular.z,
-                  self.get_clock().now().nanoseconds * 1e-9)
+        sample = (math.hypot(twist.linear.x, twist.linear.y), twist.angular.z, self._now())
         with self._motion_lock:
+            if self._gate is not None:
+                self._gate.on_sample(*sample)
             self._motion_sample = sample
             if self._motion_queued:
                 return

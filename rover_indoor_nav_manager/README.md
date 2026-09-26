@@ -95,6 +95,9 @@ imports ROS or an outer layer.
 | `zenoh_client_mode` | `true` | Run the child launch as Zenoh clients (rmw_zenoh only) |
 | `pose_record_period` | `5.0` | s, backstop for the stop-triggered save |
 | `motion_topic` | `odometry/wheels` | Speed source for detecting a stop |
+| `command_topic` | `cmd_vel` | twist_mux's output: `motion_topic` is subscribed only from the first command until the commands are quiet and the stop is reported. Empty = always subscribed (also catches a rover pushed by hand) |
+| `odometry_idle_timeout` | `5.0` | s of quiet commands before `motion_topic` is unsubscribed |
+| `pose_lookup_window` | `0.5` | s one pose lookup listens to `/tf` |
 | `stop_linear_threshold` / `stop_angular_threshold` / `stop_hold_time` | `0.03` / `0.05` / `0.5` | m/s, rad/s, s |
 | `restore_sigma_xy` / `restore_sigma_yaw` | `1.5` / `0.785` | m / rad, AMCL spread around a remembered pose |
 | `auto_start` | `true` | Resume / start mapping on startup |
@@ -107,5 +110,17 @@ colcon test --packages-select rover_indoor_nav_manager
 ```
 
 The tests are pytest with fakes for every port: domain rules, every use case, the file
-repository on a temp dir, the launch command line, and process-group start/stop. They need no
-ROS graph.
+repository on a temp dir, the launch command line, process-group start/stop, and the odometry
+gate. None of them needs a ROS graph except `test_tf_pose_source`, which runs a real TF
+publisher (run it serialized; with the rover router unreachable use
+`RMW_IMPLEMENTATION=rmw_fastrtps_cpp ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST`).
+
+## CPU
+
+In rclpy every received message wakes the executor, and that wake-up - not the callback - is what
+costs CPU. So the node subscribes to high-rate topics only while it needs them:
+- `/tf` (~90 Hz) only for the length of a pose lookup (every `pose_record_period` and on events);
+- `motion_topic` (50 Hz) only around commanded motion.
+
+The executor has two threads. Measured on the rover on 2026-09-26, before this change, with an
+always-on TF listener, always-on odometry and four threads: 21 % of one core.
