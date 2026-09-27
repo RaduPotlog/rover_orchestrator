@@ -315,7 +315,7 @@
         inflation_layer:
           plugin: nav2_costmap_2d::InflationLayer
           cost_scaling_factor: 2.0
-          # Sized to the robot: footprint is 0.98 x 0.98 m, circumscribed radius 0.693 m.
+          # Sized to the robot: footprint is 0.913 x 0.803 m, circumscribed radius 0.608 m.
           inflation_radius: 0.9
 
 
@@ -421,7 +421,7 @@
         inflation_layer:
           plugin: nav2_costmap_2d::InflationLayer
           cost_scaling_factor: 1.5
-          # Sized to the robot: footprint is 0.98 x 0.98 m, circumscribed radius 0.693 m.
+          # Sized to the robot: footprint is 0.913 x 0.803 m, circumscribed radius 0.608 m.
           inflation_radius: 0.9
           inflate_around_unknown: false
           inflate_unknown: false

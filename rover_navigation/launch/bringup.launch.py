@@ -226,13 +226,17 @@ def generate_launch_description():
     )
 
     bb_padding = 0.04
+    # Outer wheel edges, measured on the rover and matching rover_description's wheel_01.yaml:
+    # wheelbase / 2 + wheel_radius and wheel_separation / 2 + wheel_width / 2.
+    half_length = 0.503 / 2 + 0.1651  # 0.4166
+    half_width = 0.615 / 2 + 0.108 / 2  # 0.3615
     robot_bounding_box = {
         "rover_a1": {
-            "min_x": -0.45 - bb_padding,
-            "min_y": -0.45 - bb_padding,
+            "min_x": round(-half_length - bb_padding, 4),
+            "min_y": round(-half_width - bb_padding, 4),
             "min_z": 0.05,
-            "max_x": 0.45 + bb_padding,
-            "max_y": 0.45 + bb_padding,
+            "max_x": round(half_length + bb_padding, 4),
+            "max_y": round(half_width + bb_padding, 4),
             "max_z": 0.5,
         },
     }
