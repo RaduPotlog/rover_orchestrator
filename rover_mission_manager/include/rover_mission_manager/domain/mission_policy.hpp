@@ -34,6 +34,14 @@ enum class SensorHealth
 /** @brief Everything the policy is allowed to look at when deciding what to do next. */
 struct RoverConditions
 {
+    /**
+     * @brief True when the rover's driving mode lets Nav 2 drive (rover_drive_mode AUTOMATIC).
+     *
+     * False until the mode is known: the manager must never start driving on a rover whose
+     * operator has not handed it over.
+     */
+    bool autonomy_allowed = false;
+
     /** @brief True when rover_twist_mux's motion lock is engaged, or its topic is stale. */
     bool motion_locked = true;
 
@@ -49,6 +57,7 @@ enum class MissionAction
 {
     kProceed,  ///< Keep driving to the current waypoint.
     kHold,     ///< Suspend; conditions are temporarily unsafe.
+    kCancel,   ///< The operator took the rover back (driving mode left AUTOMATIC).
     kAbort,    ///< Give up on the mission.
 };
 
@@ -66,6 +75,9 @@ enum class MissionAction
  * trustworthy without it, but the sensor can come back, and the mission should resume on the
  * same waypoint when it does. kUnknown only holds when @p require_lidar is set, so a rover
  * running with ROVER_USE_LIDAR=false is not permanently held.
+ *
+ * Leaving AUTOMATIC is a *cancel*: the operator switched modes or took over with the
+ * joystick, and the rover must not resume the mission on its own when AUTOMATIC comes back.
  */
 class MissionPolicy
 {
@@ -73,6 +85,9 @@ public:
     explicit MissionPolicy(double abort_battery_fraction = 0.10, bool require_lidar = false);
 
     MissionAction decide(const RoverConditions & conditions) const;
+
+    /** @brief Whether a new mission may start under @p conditions. */
+    bool mayAccept(const RoverConditions & conditions) const;
 
     double abortBatteryFraction() const { return abort_battery_fraction_; }
 

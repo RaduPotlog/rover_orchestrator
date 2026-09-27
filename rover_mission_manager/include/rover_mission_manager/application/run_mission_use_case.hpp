@@ -17,6 +17,8 @@
 
 #include <cstddef>
 #include <memory>
+#include <optional>
+#include <string>
 
 #include "rover_mission_manager/domain/mission.hpp"
 #include "rover_mission_manager/domain/mission_policy.hpp"
@@ -43,6 +45,13 @@ public:
 
     /** @brief Replace the active mission and start it. Cancels anything in flight. */
     void accept(domain::Mission mission);
+
+    /**
+     * @brief accept() if the policy lets a mission start under @p conditions.
+     * @return Why the mission was refused, or nullopt when it was started.
+     */
+    std::optional<std::string> tryAccept(
+        domain::Mission mission, const domain::RoverConditions & conditions);
 
     /** @brief Cancel the active mission and stop the rover. */
     void cancel();

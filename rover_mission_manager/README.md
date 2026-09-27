@@ -68,6 +68,7 @@ decides whether waypoints are interpreted in `<namespace>/odom` (`odom`) or
 
 | Direction | Name | Type |
 |---|---|---|
+| in | `drive_mode` | `rover_msgs/DriveMode`, latched — from `rover_drive_mode`; missions run only in AUTOMATIC |
 | in | `motion_lock` | `std_msgs/Bool` — from `rover_motion_lock_node` |
 | in | `rover_battery/battery_status` | `sensor_msgs/BatteryState` (`battery_topic`) |
 | in | `diagnostics` | `diagnostic_msgs/DiagnosticArray` — `rover_rs16_lidar`'s health task |
@@ -87,6 +88,8 @@ GoTo from the drive UI is simply a one-waypoint mission that replaces the previo
   manager has no TF buffer, so a pose in another frame is rejected rather than driven to in
   the wrong frame.
 - **Rejected requests:** an empty list, or a non-finite position or zero quaternion.
+- **Driving mode:** refused unless `drive_mode` is AUTOMATIC ("Drive mode is not AUTOMATIC"),
+  and the active mission is left alone.
 - **Ids:** an empty `mission_id` becomes `mission-<n>`.
 - **Cancelling:** `run_mission` with `data: false`.
 
@@ -94,6 +97,15 @@ The request translation lives in `infrastructure/mission_request.cpp` and is uni
 `test/unit/test_mission_request.cpp`.
 
 ## Safety behaviour
+
+Leaving the AUTOMATIC driving mode is a **cancel**, checked right after the battery abort: the
+operator switched modes, or took over with the web joystick (which `rover_drive_mode` turns into
+a switch to ASSISTED). The mission is cancelled with the reason "drive mode left AUTOMATIC" and
+does not resume when AUTOMATIC comes back; a hold would. It is fail-safe on "never heard": until
+`drive_mode` reports AUTOMATIC, missions are refused. There is no staleness timeout, because the
+topic is latched and published on change only; if `rover_drive_mode` dies, it also stops
+forwarding Nav 2's commands, so a stale AUTOMATIC cannot drive the rover.
+`require_automatic_drive_mode: false` turns the gate off, for a stack without `rover_drive_mode`.
 
 The motion lock is a **hold**, not an abort: it is how an operator pauses the rover, so the
 mission survives it and resumes on the same waypoint. It is fail-safe in both places that
@@ -136,6 +148,8 @@ live there, and `config/mission_manager.yaml` carries the deployed values. Notab
 | `plugin_libs` | `[is_motion_locked_bt_node]` | Plain BT.CPP plugins. Built by `rover_navigation`. |
 | `ros_plugin_libs` | *(unset)* | See the note in `config/mission_manager.yaml` — an empty YAML list is rejected by rcl, so leave it unset rather than writing `[]`. |
 | `goal_frame_id` | `""` | Empty derives `<namespace>/odom`; the launch file sets it to `<namespace>/map` for `gps`, `slam` and `amcl`. |
+| `drive_mode_topic` | `drive_mode` | Latched `rover_msgs/DriveMode` from `rover_drive_mode`. |
+| `require_automatic_drive_mode` | `true` | Missions run only in AUTOMATIC. `false` only without `rover_drive_mode`. |
 | `motion_lock_timeout` | `0.5` s | Publisher runs at 10 Hz. |
 | `lidar_health_topic` | `diagnostics` | Raw `DiagnosticArray` topic, not `diagnostics_agg`. |
 | `lidar_status_name` | `rover_rs16_lidar_node: Lidar status` | Exact `DiagnosticStatus` name to match. |

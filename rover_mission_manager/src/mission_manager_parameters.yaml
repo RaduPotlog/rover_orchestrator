@@ -36,6 +36,20 @@ mission_manager:
       BehaviorTree plugin libraries that need the ROS node handle on the blackboard. These are
       registered after `node` is seeded, so nav2_behavior_tree plugins can find it.
 
+  drive_mode_topic:
+    type: string
+    default_value: "drive_mode"
+    description: >
+      Latched rover_msgs/DriveMode from rover_drive_mode. Missions are accepted and run only
+      while it reports AUTOMATIC; leaving AUTOMATIC cancels the active mission.
+
+  require_automatic_drive_mode:
+    type: bool
+    default_value: true
+    description: >
+      Gate missions on drive_mode. Set false only on a stack without rover_drive_mode; there,
+      nothing else stops a mission when an operator takes the rover back.
+
   motion_lock_topic:
     type: string
     default_value: "motion_lock"

@@ -39,6 +39,7 @@ namespace rover_mission_manager::infrastructure
 MissionManagerNode::MissionManagerNode(
     const std::string & node_name, const rclcpp::NodeOptions & options)
 : rclcpp::Node(node_name, options),
+  automatic_mode_(false),
   motion_locked_(true),
   motion_lock_received_(false),
   motion_lock_stamp_ns_(0),
@@ -119,6 +120,13 @@ void MissionManagerNode::initialize()
     run_mission_use_case_ = std::make_unique<application::RunMissionUseCase>(
         std::move(navigation), std::move(status_publisher),
         domain::MissionPolicy(params_.abort_battery_fraction, params_.require_lidar));
+
+    // Latched by rover_drive_mode, so the current mode arrives on subscription.
+    drive_mode_sub_ = this->create_subscription<rover_msgs::msg::DriveMode>(
+        params_.drive_mode_topic, rclcpp::QoS(rclcpp::KeepLast(1)).reliable().transient_local(),
+        [this](const rover_msgs::msg::DriveMode::ConstSharedPtr & msg) {
+            automatic_mode_ = msg->mode == rover_msgs::msg::DriveMode::AUTOMATIC;
+        });
 
     motion_lock_sub_ = this->create_subscription<std_msgs::msg::Bool>(
         params_.motion_lock_topic, rclcpp::QoS(rclcpp::KeepLast(1)).reliable(),
@@ -214,6 +222,11 @@ domain::RoverConditions MissionManagerNode::currentConditions() const
 {
     domain::RoverConditions conditions;
 
+    // Fail-safe: until rover_drive_mode reports AUTOMATIC, the operator has not handed the rover
+    // over. No staleness check: the mode is latched and published on change only, and if its
+    // manager dies it also stops forwarding Nav 2 commands, so a stale AUTOMATIC cannot drive.
+    conditions.autonomy_allowed = !params_.require_automatic_drive_mode || automatic_mode_.load();
+
     // Fail-safe: no message yet, or a stale one, both count as locked -- the same rule
     // rover_twist_mux applies, so the manager never believes it may drive when the mux does
     // not.
@@ -288,12 +301,20 @@ void MissionManagerNode::setMissionCb(
         return;
     }
 
-    ++missions_accepted_;
     const auto id = mission->id();
     const auto count = mission->waypoints().size();
 
     // accept() cancels whatever is in flight, so a new GoTo simply replaces the old mission.
-    run_mission_use_case_->accept(std::move(*mission));
+    if (const auto refused =
+            run_mission_use_case_->tryAccept(std::move(*mission), currentConditions()))
+    {
+        response->success = false;
+        response->message = *refused;
+        RCLCPP_WARN(this->get_logger(), "set_mission rejected: %s", refused->c_str());
+        return;
+    }
+
+    ++missions_accepted_;
 
     response->success = true;
     response->message =

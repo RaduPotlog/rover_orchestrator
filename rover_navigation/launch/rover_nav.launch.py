@@ -49,6 +49,7 @@ def generate_launch_description():
         "bt_navigator",
         "waypoint_follower",
         "velocity_smoother",
+        "collision_monitor",
     ]
 
     # Create our own temporary YAML files that include substitutions
@@ -192,7 +193,18 @@ def generate_launch_description():
                 respawn_delay=2.0,
                 parameters=[configured_params],
                 arguments=["--ros-args", "--log-level", log_level],
-                remappings=[("cmd_vel", "cmd_vel_nav"), ("cmd_vel_smoothed", "nav_cmd_vel_stamped")],
+                # Publishes cmd_vel_smoothed, the collision monitor's input.
+                remappings=[("cmd_vel", "cmd_vel_nav")],
+            ),
+            Node(
+                package="nav2_collision_monitor",
+                executable="collision_monitor",
+                name="collision_monitor",
+                output="screen",
+                respawn=use_respawn,
+                respawn_delay=2.0,
+                parameters=[configured_params],
+                arguments=["--ros-args", "--log-level", log_level],
             ),
             Node(
                 package="nav2_lifecycle_manager",
@@ -256,7 +268,13 @@ def generate_launch_description():
                 plugin="nav2_velocity_smoother::VelocitySmoother",
                 name="velocity_smoother",
                 parameters=[configured_params],
-                remappings=[("cmd_vel", "cmd_vel_nav"), ("cmd_vel_smoothed", "nav_cmd_vel_stamped")],
+                remappings=[("cmd_vel", "cmd_vel_nav")],
+            ),
+            ComposableNode(
+                package="nav2_collision_monitor",
+                plugin="nav2_collision_monitor::CollisionMonitor",
+                name="collision_monitor",
+                parameters=[configured_params],
             ),
             ComposableNode(
                 package="nav2_lifecycle_manager",

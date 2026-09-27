@@ -1,0 +1,19 @@
+/**/drive_mode_manager:
+  ros__parameters:
+    # Mode at startup: assisted (lidar guard on) or manual. Overridden by the launch file's
+    # default_mode argument (ROVER_DRIVE_DEFAULT_MODE).
+    default_mode: assisted
+
+    # False when rover_drive_mode.launch.py runs without the teleop collision monitor.
+    use_teleop_guard: true
+
+    timer_frequency: 10.0
+
+    # A web joystick command above either threshold in AUTOMATIC is an operator takeover.
+    takeover_threshold:
+      linear: 0.02
+      angular: 0.02
+
+    require_mission_manager_for_automatic: true
+    mission_manager_service: set_mission
+    mission_manager_loss_grace: 2.0

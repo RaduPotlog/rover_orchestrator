@@ -5,8 +5,10 @@ Smac 2D planner, recovery behaviors, behavior trees and map server.
 
 Mostly configuration — launch files, parameters, behavior trees and a map — plus two small
 pieces of C++: the `IsMotionLocked` behavior-tree condition and the SLAM `map_autosaver_node`.
-It runs on the orchestrator computer and drives the rover by publishing
-`nav_cmd_vel_stamped`, which `rover_twist_mux` arbitrates against the teleop sources.
+It runs on the orchestrator computer. Its commands end at a collision monitor
+(`nav_cmd_vel_guarded`), and `rover_drive_mode` forwards them to the platform
+(`nav_cmd_vel_stamped`, which `rover_twist_mux` arbitrates against the teleop sources) only in
+the AUTOMATIC driving mode.
 
 ## Prerequisites
 
@@ -34,6 +36,7 @@ providing:
 Both costmaps mark and clear from the lidar, so without it the local costmap stays empty and
 the rover plans blind. `rover_rs16_lidar` also owns the cloud-to-scan projection — this
 package deliberately does not run a second one.
+| Forwarding to the platform | `rover_drive_mode` (`nav_cmd_vel_guarded` → `nav_cmd_vel_stamped`, AUTOMATIC only) |
 | `cmd_vel` arbitration | `rover_twist_mux` (input `nav_cmd_vel_stamped`, priority 5) |
 
 When navigation runs on a different machine than the rover, both must share the same
@@ -153,7 +156,7 @@ ros2 launch rover_navigation localization.launch.py \
 
 Lifecycle nodes managed by `lifecycle_manager_navigation`: `controller_server`,
 `smoother_server`, `planner_server`, `behavior_server`, `bt_navigator`,
-`waypoint_follower`, `velocity_smoother`. `map_server` is managed separately by
+`waypoint_follower`, `velocity_smoother`, `collision_monitor`. `map_server` is managed separately by
 `lifecycle_manager_localization`.
 
 | Direction | Topic | Type |
@@ -162,12 +165,17 @@ Lifecycle nodes managed by `lifecycle_manager_navigation`: `controller_server`,
 | in | `<observation_topic>` (default `scan`) | `sensor_msgs/LaserScan` — the `stvl_layer`'s observation source |
 | in | `diagnostics` | `diagnostic_msgs/DiagnosticArray` — read by `IsLidarHealthy` |
 | in | `/<namespace>/map` | `nav_msgs/OccupancyGrid` (global costmap static layer) |
-| out | `nav_cmd_vel_stamped` | `geometry_msgs/TwistStamped` |
+| out | `nav_cmd_vel_guarded` | `geometry_msgs/TwistStamped` — to `rover_drive_mode` |
+| out | `collision_monitor_state` | `nav2_msgs/CollisionMonitorState` |
 | out | `local_costmap/costmap`, `global_costmap/costmap` | `nav_msgs/OccupancyGrid` |
 
-`nav_cmd_vel_stamped` comes from the `velocity_smoother` (`cmd_vel_smoothed` is remapped to
-it). `rover_twist_mux` gives it priority 5 — below both teleop sources — and masks it
-whenever the `motion_lock` E-Stop is active.
+The chain is `controller_server`/`behavior_server` → `cmd_vel_nav` → `velocity_smoother` →
+`cmd_vel_smoothed` → `collision_monitor` → `nav_cmd_vel_guarded` → `rover_drive_mode`, which
+publishes `nav_cmd_vel_stamped` only in AUTOMATIC. The collision monitor
+(`collision_monitor:` in `config/rover_nav_params.yaml`) is a last-resort guard on top of the
+costmaps: direction-dependent slow-down and stop zones around the footprint, chosen by the
+commanded velocity. `rover_twist_mux` gives `nav_cmd_vel_stamped` priority 5 — below both
+teleop sources — and masks it whenever the `motion_lock` E-Stop is active.
 
 The Nav 2 global frame depends on `localization_source` (see below); the robot frame is
 always `<namespace>/base_link`, and the local costmap always stays on `<namespace>/odom`
@@ -324,8 +332,13 @@ ros2 lifecycle get /rover/bt_navigator     # expect: active [3]
 ros2 action send_goal /rover/navigate_to_pose nav2_msgs/action/NavigateToPose \
   "{pose: {header: {frame_id: rover/odom}, pose: {position: {x: 2.0, y: 0.0, z: 0.0}, orientation: {w: 1.0}}}}"
 
-ros2 topic echo /rover/nav_cmd_vel_stamped
+ros2 topic echo /rover/nav_cmd_vel_guarded   # Nav 2's output
+ros2 topic echo /rover/nav_cmd_vel_stamped   # what reaches the platform (AUTOMATIC only)
 ```
+
+Nothing reaches the platform unless `rover_drive_mode` is running and in AUTOMATIC
+(`ros2 service call /rover/set_drive_mode rover_msgs/srv/SetDriveMode "{mode: 3}"`, which needs
+the mission manager).
 
 The goal `frame_id` must match the mode: **`rover/odom`** with `localization_source:=odom`
 (as above), **`rover/map`** with `gps`, `slam` or `amcl`.
@@ -390,6 +403,12 @@ The goal `frame_id` must match the mode: **`rover/odom`** with `localization_sou
   last one is older than its `timeout` (0.5 s; the publisher runs at 10 Hz), matching
   `rover_twist_mux`'s own rule that a dead `rover_motion_lock_node` closes the mux. Check
   `ros2 topic hz /rover/motion_lock` and `ros2 topic echo /rover/motion_lock`.
+- **Rover does not move, `nav_cmd_vel_guarded` is publishing but `nav_cmd_vel_stamped` is
+  not:** the driving mode is not AUTOMATIC (`ros2 topic echo /rover/drive_mode`), or
+  `rover_drive_mode` is not running.
+- **`nav_cmd_vel_guarded` is all zeros while the plan is fine:** the collision monitor is
+  stopping the rover. `ros2 topic echo /rover/collision_monitor_state` names the zone;
+  `invalid source` means the scan is stale (older than `source_timeout`).
 - **Rover does not move but `nav_cmd_vel_stamped` is publishing:** check `rover_twist_mux`
   — a higher-priority teleop input may be active, or `motion_lock` may be engaged.
 - **Trees abort and `motion_lock` is fine:** the `IsLidarHealthy` guard is failing. Check

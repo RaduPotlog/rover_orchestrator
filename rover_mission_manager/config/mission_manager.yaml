@@ -22,6 +22,10 @@
       # "Invalid parameter value ... Contains no value". The parameter's own default
       # is already an empty string_array.
 
+      # rover_drive_mode: missions run only in AUTOMATIC.
+      drive_mode_topic: drive_mode
+      require_automatic_drive_mode: true
+
       motion_lock_topic: motion_lock
       motion_lock_timeout: 0.5
 

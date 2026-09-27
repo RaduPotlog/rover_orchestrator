@@ -35,6 +35,12 @@ MissionAction MissionPolicy::decide(const RoverConditions & conditions) const
         return MissionAction::kAbort;
     }
 
+    // After the battery abort, which is the more informative outcome, and before the holds:
+    // a held mission would otherwise resume by itself once AUTOMATIC is selected again.
+    if (!conditions.autonomy_allowed) {
+        return MissionAction::kCancel;
+    }
+
     // Checked before the lock so an engaged lock cannot mask a dead sensor in the status
     // message, and after the battery abort because an abort outranks any hold.
     if (conditions.lidar_health == SensorHealth::kUnhealthy ||
@@ -48,6 +54,11 @@ MissionAction MissionPolicy::decide(const RoverConditions & conditions) const
     }
 
     return MissionAction::kProceed;
+}
+
+bool MissionPolicy::mayAccept(const RoverConditions & conditions) const
+{
+    return conditions.autonomy_allowed;
 }
 
 }  // namespace rover_mission_manager::domain

@@ -1,0 +1,104 @@
+drive_mode:
+
+  default_mode:
+    type: string
+    default_value: "assisted"
+    description: >
+      Driving mode at startup. AUTOMATIC is not allowed here: it would hand the rover to Nav 2
+      before anyone asked. Falls back to manual when assisted is unavailable
+      (use_teleop_guard false).
+    validation: { one_of<>: [["manual", "assisted"]] }
+
+  use_teleop_guard:
+    type: bool
+    default_value: true
+    description: >
+      Whether the teleop collision monitor runs (rover_drive_mode.launch.py use_teleop_guard).
+      When false, ASSISTED is refused and a takeover lands in MANUAL.
+
+  timer_frequency:
+    type: double
+    default_value: 10.0
+    description: Hz at which the mission manager and collision monitors are checked.
+    validation: { gt<>: 0.0 }
+
+  takeover_threshold:
+    linear:
+      type: double
+      default_value: 0.02
+      description: >
+        m/s above which a web joystick command in AUTOMATIC is an operator takeover. Below it
+        (and below the angular one) the command counts as a centred stick and is dropped.
+      validation: { gt_eq<>: 0.0 }
+
+    angular:
+      type: double
+      default_value: 0.02
+      description: rad/s counterpart of takeover_threshold.linear.
+      validation: { gt_eq<>: 0.0 }
+
+  require_mission_manager_for_automatic:
+    type: bool
+    default_value: true
+    description: >
+      Refuse AUTOMATIC while the mission manager's set_mission service is not on the graph,
+      and fall back from it when the manager disappears.
+
+  mission_manager_service:
+    type: string
+    default_value: "set_mission"
+    description: Service whose presence means the mission manager is running.
+
+  mission_manager_loss_grace:
+    type: double
+    default_value: 2.0
+    description: Seconds the mission manager may be missing in AUTOMATIC before falling back.
+    validation: { gt_eq<>: 0.0 }
+
+  topics:
+    web_teleop:
+      type: string
+      default_value: "teleop_web_cmd_vel_stamped"
+      description: TwistStamped from the web UI's joystick (rover_drive_interface).
+
+    teleop_output:
+      type: string
+      default_value: "teleop_driver_interface_cmd_vel_stamped"
+      description: >
+        Platform input for web teleop (rover_command_freshness_node, then twist_mux
+        driver_interface).
+
+    teleop_guard_input:
+      type: string
+      default_value: "teleop_guard_in"
+      description: cmd_vel_in_topic of the teleop collision monitor.
+
+    teleop_guard_output:
+      type: string
+      default_value: "teleop_guard_out"
+      description: cmd_vel_out_topic of the teleop collision monitor.
+
+    teleop_guard_state:
+      type: string
+      default_value: "teleop_collision_monitor_state"
+      description: state_topic of the teleop collision monitor.
+
+    navigation_guard_output:
+      type: string
+      default_value: "nav_cmd_vel_guarded"
+      description: cmd_vel_out_topic of Nav 2's collision monitor.
+
+    navigation_guard_state:
+      type: string
+      default_value: "collision_monitor_state"
+      description: state_topic of Nav 2's collision monitor.
+
+    navigation_output:
+      type: string
+      default_value: "nav_cmd_vel_stamped"
+      description: Platform input for Nav 2 (twist_mux nav).
+
+    drive_mode:
+      type: string
+      default_value: "drive_mode"
+      description: Latched rover_msgs/DriveMode the mode is announced on.

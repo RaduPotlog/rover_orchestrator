@@ -1,0 +1,103 @@
+# nav2_collision_monitor guarding the web joystick in ASSISTED mode. rover_drive_mode's
+# manager feeds it (teleop_guard_in) only in ASSISTED and forwards what comes out
+# (teleop_guard_out) only in ASSISTED.
+#
+# Geometry, in <namespace>/base_link (x forward, y left), all distances in metres:
+#   wheel edges        x +-0.4166, y +-0.3615   (rover_navigation bringup.launch.py)
+#   padded footprint   x +-0.4566, y +-0.4015   (the 0.913 x 0.803 Nav 2 footprint)
+#   corner radius      0.608                    (what a turn in place sweeps)
+# The forward/reverse zones start at the footprint edge, so points on the rover itself never
+# trip them. The turn-in-place zone cannot exclude the body (polygons have no holes), so it
+# needs the lidar self-filter (rover_rs16_lidar scan.self_filter) to hide the lidar support
+# post; without it, turning in place is always blocked in ASSISTED.
+#
+# Every number below the geometry block is a TUNABLE, sized for the UI's 1.0 m/s cap: at the
+# 0.4 slow-down ratio the rover crosses the 0.34 m stop depth in ~0.85 s, versus ~0.25 s of
+# scan + routing + controller latency and a 2.7 m/s^2 deceleration limit. Re-measure the
+# stop distance on the rover before relying on it.
+/**:
+  teleop_collision_monitor:
+    ros__parameters:
+      use_sim_time: false
+      enabled: true
+      base_frame_id: <namespace>/base_link
+      odom_frame_id: <namespace>/odom
+      cmd_vel_in_topic: teleop_guard_in
+      cmd_vel_out_topic: teleop_guard_out
+      state_topic: teleop_collision_monitor_state
+      enable_stamped_cmd_vel: true
+      transform_tolerance: 0.1
+      # 5 scan periods. A stale scan makes the monitor STOP (reported as "invalid source").
+      source_timeout: 0.5
+      # No odom extrapolation: the scan is at most source_timeout old, and this keeps the
+      # guard independent of the odom TF published from another container.
+      base_shift_correction: false
+      stop_pub_timeout: 1.0
+      polygons: [teleop_stop, teleop_slow]
+
+      # Sub-polygons are picked by the COMMANDED velocity, first match wins, so the order
+      # matters: turning in place (|v| <= 0.05) before driving forward or backward. Together
+      # they must cover every command (v in [-2, 2], w in [-4, 4]): an uncovered command
+      # leaves the previous zone active.
+      teleop_stop:
+        type: velocity_polygon
+        action_type: stop
+        min_points: 3
+        visualize: true
+        polygon_pub_topic: teleop_stop_polygon
+        enabled: true
+        holonomic: false
+        velocity_polygons: [rotate, forward, reverse]
+        rotate:
+          points: "[[0.65, 0.27], [0.27, 0.65], [-0.27, 0.65], [-0.65, 0.27], [-0.65, -0.27], [-0.27, -0.65], [0.27, -0.65], [0.65, -0.27]]"
+          linear_min: -0.05
+          linear_max: 0.05
+          theta_min: -4.0
+          theta_max: 4.0
+        forward:
+          points: "[[0.80, 0.45], [0.80, -0.45], [0.46, -0.45], [0.46, 0.45]]"
+          linear_min: 0.05
+          linear_max: 2.0
+          theta_min: -4.0
+          theta_max: 4.0
+        reverse:
+          points: "[[-0.46, 0.45], [-0.46, -0.45], [-0.75, -0.45], [-0.75, 0.45]]"
+          linear_min: -2.0
+          linear_max: -0.05
+          theta_min: -4.0
+          theta_max: 4.0
+
+      teleop_slow:
+        type: velocity_polygon
+        action_type: slowdown
+        slowdown_ratio: 0.4
+        min_points: 3
+        visualize: true
+        polygon_pub_topic: teleop_slow_polygon
+        enabled: true
+        holonomic: false
+        velocity_polygons: [rotate, forward, reverse]
+        rotate:
+          points: "[[0.80, 0.33], [0.33, 0.80], [-0.33, 0.80], [-0.80, 0.33], [-0.80, -0.33], [-0.33, -0.80], [0.33, -0.80], [0.80, -0.33]]"
+          linear_min: -0.05
+          linear_max: 0.05
+          theta_min: -4.0
+          theta_max: 4.0
+        forward:
+          points: "[[1.50, 0.60], [1.50, -0.60], [0.46, -0.60], [0.46, 0.60]]"
+          linear_min: 0.05
+          linear_max: 2.0
+          theta_min: -4.0
+          theta_max: 4.0
+        reverse:
+          points: "[[-0.46, 0.60], [-0.46, -0.60], [-1.15, -0.60], [-1.15, 0.60]]"
+          linear_min: -2.0
+          linear_max: -0.05
+          theta_min: -4.0
+          theta_max: 4.0
+
+      observation_sources: [scan]
+      scan:
+        type: scan
+        topic: scan
+        enabled: true

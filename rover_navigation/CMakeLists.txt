@@ -97,6 +97,10 @@ if(BUILD_TESTING)
     # field rather than at startup.
     ament_add_pytest_test(test_localization_launch test/launch/test_localization_launch.py)
 
+    # The Nav 2 command path must end at the collision monitor (and so at rover_drive_mode,
+    # which forwards it only in AUTOMATIC), in both composition branches.
+    ament_add_pytest_test(test_nav_launch test/launch/test_nav_launch.py)
+
     ament_add_gtest(test_map_autosave_policy test/unit/test_map_autosave_policy.cpp)
     target_link_libraries(test_map_autosave_policy ${PROJECT_NAME}_core)
 

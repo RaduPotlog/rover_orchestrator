@@ -517,6 +517,94 @@
       deadband_velocity: [0.0, 0.0, 0.0]
       velocity_timeout: 1.0
 
+  # Last stage of the Nav 2 command path: velocity_smoother -> cmd_vel_smoothed -> here ->
+  # nav_cmd_vel_guarded -> rover_drive_mode's manager, which forwards it to the platform
+  # (nav_cmd_vel_stamped) only in AUTOMATIC. A last-resort guard on top of the costmaps, for
+  # what they miss between updates. Same zone layout as rover_drive_mode's
+  # teleop_collision_monitor.yaml (see the geometry there), but tighter: the planner already
+  # keeps its inflation distance, and a turn-in-place zone much wider than the 0.608 m corner
+  # radius would veto rotations MPPI and the rotation shim consider safe, stalling the mission.
+  # Distances are TUNABLES; re-measure the stop distance on the rover.
+  collision_monitor:
+    ros__parameters:
+      use_sim_time: false
+      enabled: true
+      base_frame_id: <namespace>/base_link
+      odom_frame_id: <namespace>/odom
+      cmd_vel_in_topic: cmd_vel_smoothed
+      cmd_vel_out_topic: nav_cmd_vel_guarded
+      state_topic: collision_monitor_state
+      enable_stamped_cmd_vel: true
+      transform_tolerance: 0.2
+      source_timeout: 1.0
+      base_shift_correction: true
+      stop_pub_timeout: 1.0
+      polygons: [nav_stop, nav_slow]
+
+      # First match wins: turning in place before driving; together they cover every command.
+      nav_stop:
+        type: velocity_polygon
+        action_type: stop
+        min_points: 3
+        visualize: true
+        polygon_pub_topic: nav_stop_polygon
+        enabled: true
+        holonomic: false
+        velocity_polygons: [rotate, forward, reverse]
+        rotate:
+          points: "[[0.62, 0.257], [0.257, 0.62], [-0.257, 0.62], [-0.62, 0.257], [-0.62, -0.257], [-0.257, -0.62], [0.257, -0.62], [0.62, -0.257]]"
+          linear_min: -0.05
+          linear_max: 0.05
+          theta_min: -4.0
+          theta_max: 4.0
+        forward:
+          points: "[[0.70, 0.43], [0.70, -0.43], [0.46, -0.43], [0.46, 0.43]]"
+          linear_min: 0.05
+          linear_max: 2.0
+          theta_min: -4.0
+          theta_max: 4.0
+        reverse:
+          points: "[[-0.46, 0.43], [-0.46, -0.43], [-0.70, -0.43], [-0.70, 0.43]]"
+          linear_min: -2.0
+          linear_max: -0.05
+          theta_min: -4.0
+          theta_max: 4.0
+
+      nav_slow:
+        type: velocity_polygon
+        action_type: slowdown
+        slowdown_ratio: 0.5
+        min_points: 3
+        visualize: true
+        polygon_pub_topic: nav_slow_polygon
+        enabled: true
+        holonomic: false
+        velocity_polygons: [rotate, forward, reverse]
+        rotate:
+          points: "[[0.75, 0.31], [0.31, 0.75], [-0.31, 0.75], [-0.75, 0.31], [-0.75, -0.31], [-0.31, -0.75], [0.31, -0.75], [0.75, -0.31]]"
+          linear_min: -0.05
+          linear_max: 0.05
+          theta_min: -4.0
+          theta_max: 4.0
+        forward:
+          points: "[[1.30, 0.55], [1.30, -0.55], [0.46, -0.55], [0.46, 0.55]]"
+          linear_min: 0.05
+          linear_max: 2.0
+          theta_min: -4.0
+          theta_max: 4.0
+        reverse:
+          points: "[[-0.46, 0.55], [-0.46, -0.55], [-1.00, -0.55], [-1.00, 0.55]]"
+          linear_min: -2.0
+          linear_max: -0.05
+          theta_min: -4.0
+          theta_max: 4.0
+
+      observation_sources: [scan]
+      scan:
+        type: scan
+        topic: <scan_topic>
+        enabled: true
+
   ### LOCALIZATION ###
 
   # Only used when bringup.launch.py is started with localization_source:=amcl. AMCL then

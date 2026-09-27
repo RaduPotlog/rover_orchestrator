@@ -29,6 +29,8 @@
   <exec_depend>nav2_bt_navigator</exec_depend>
   <!-- Every launch file imports nav2_common.launch (ReplaceString / RewrittenYaml). -->
   <exec_depend>nav2_common</exec_depend>
+  <!-- Last stage of the Nav 2 command path (rover_nav.launch.py, collision_monitor). -->
+  <exec_depend>nav2_collision_monitor</exec_depend>
   <exec_depend>nav2_controller</exec_depend>
   <exec_depend>nav2_lifecycle_manager</exec_depend>
   <exec_depend>nav2_map_server</exec_depend>

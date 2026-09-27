@@ -72,6 +72,7 @@ public:
 RoverConditions unlocked()
 {
     RoverConditions conditions;
+    conditions.autonomy_allowed = true;
     conditions.motion_locked = false;
     conditions.battery_fraction = 0.9;
     return conditions;
@@ -242,4 +243,67 @@ TEST(RunMissionUseCaseTest, PublishesOnTransitionsRatherThanEveryTick)
 
     // Still RUNNING, but the waypoint cursor moved, which operators need to see.
     EXPECT_EQ(f.status->states.size(), 2u);
+}
+
+// --- Driving mode -----------------------------------------------------------------------
+
+TEST(RunMissionUseCaseTest, RefusesANewMissionOutsideAutomatic)
+{
+    Fixture f;
+    RoverConditions manual = unlocked();
+    manual.autonomy_allowed = false;
+
+    const auto refused = f.use_case.tryAccept(Mission("m1", {Waypoint{1.0, 0.0, 0.0}}), manual);
+
+    ASSERT_TRUE(refused.has_value());
+    EXPECT_NE(refused->find("AUTOMATIC"), std::string::npos);
+    EXPECT_EQ(f.use_case.mission().state(), MissionState::kIdle);
+    EXPECT_TRUE(f.status->states.empty());
+    EXPECT_EQ(f.navigation->cancels, 0);
+}
+
+TEST(RunMissionUseCaseTest, AcceptsANewMissionInAutomatic)
+{
+    Fixture f;
+
+    const auto refused =
+        f.use_case.tryAccept(Mission("m1", {Waypoint{1.0, 0.0, 0.0}}), unlocked());
+
+    EXPECT_FALSE(refused.has_value());
+    EXPECT_EQ(f.use_case.mission().state(), MissionState::kRunning);
+}
+
+TEST(RunMissionUseCaseTest, RefusingAMissionLeavesTheActiveOneRunning)
+{
+    Fixture f;
+    f.acceptTwoWaypointMission();
+    f.use_case.tick(unlocked());
+
+    RoverConditions manual = unlocked();
+    manual.autonomy_allowed = false;
+    ASSERT_TRUE(f.use_case.tryAccept(Mission("m2", {Waypoint{5.0, 0.0, 0.0}}), manual));
+
+    EXPECT_EQ(f.use_case.mission().id(), "m1");
+}
+
+TEST(RunMissionUseCaseTest, LeavingAutomaticCancelsTheMissionAndTheGoal)
+{
+    Fixture f;
+    f.acceptTwoWaypointMission();
+    f.use_case.tick(unlocked());
+    ASSERT_EQ(f.navigation->dispatched.size(), 1u);
+
+    RoverConditions taken_over = unlocked();
+    taken_over.autonomy_allowed = false;
+    f.use_case.tick(taken_over);
+
+    EXPECT_EQ(f.use_case.mission().state(), MissionState::kCancelled);
+    EXPECT_EQ(f.use_case.mission().failureReason(), "drive mode left AUTOMATIC");
+    EXPECT_EQ(f.navigation->cancels, 2);  // one on accept(), one on the cancel
+    EXPECT_EQ(f.status->states.back(), MissionState::kCancelled);
+
+    // Coming back to AUTOMATIC does not restart it: the operator sends a new GoTo.
+    f.use_case.tick(unlocked());
+    EXPECT_EQ(f.use_case.mission().state(), MissionState::kCancelled);
+    EXPECT_EQ(f.navigation->dispatched.size(), 1u);
 }

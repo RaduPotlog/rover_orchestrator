@@ -79,7 +79,9 @@ public:
     void resume();
 
     void fail(std::string reason);
-    void cancel();
+
+    /** @brief Cancel; @p reason is reported like a failure reason (empty = operator stop). */
+    void cancel(std::string reason = "");
 
 private:
     std::string id_;

@@ -87,13 +87,14 @@ void Mission::fail(std::string reason)
     failure_reason_ = std::move(reason);
 }
 
-void Mission::cancel()
+void Mission::cancel(std::string reason)
 {
     if (isTerminal()) {
         return;
     }
 
     state_ = MissionState::kCancelled;
+    failure_reason_ = std::move(reason);
 }
 
 const char * toString(MissionState state)

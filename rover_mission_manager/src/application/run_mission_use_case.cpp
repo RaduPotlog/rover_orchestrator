@@ -55,6 +55,19 @@ void RunMissionUseCase::accept(domain::Mission mission)
     publishStatus();
 }
 
+std::optional<std::string> RunMissionUseCase::tryAccept(
+    domain::Mission mission, const domain::RoverConditions & conditions)
+{
+    if (!policy_.mayAccept(conditions)) {
+        // The active mission, if any, is left alone: refusing a new one is not a stop request.
+        return std::string(
+            "Drive mode is not AUTOMATIC; switch the rover to Automatic to send it somewhere.");
+    }
+
+    accept(std::move(mission));
+    return std::nullopt;
+}
+
 void RunMissionUseCase::cancel()
 {
     navigation_->cancel();
@@ -91,6 +104,13 @@ void RunMissionUseCase::tick(const domain::RoverConditions & conditions)
             navigation_->cancel();
             goal_in_flight_ = false;
             mission_.fail("aborted by mission policy");
+            publishStatus();
+            return;
+
+        case MissionAction::kCancel:
+            navigation_->cancel();
+            goal_in_flight_ = false;
+            mission_.cancel("drive mode left AUTOMATIC");
             publishStatus();
             return;
 

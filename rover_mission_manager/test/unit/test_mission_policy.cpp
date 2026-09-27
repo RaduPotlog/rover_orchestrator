@@ -26,6 +26,7 @@ TEST(MissionPolicyTest, ProceedsWhenUnlockedAndCharged)
     MissionPolicy policy(0.10);
 
     RoverConditions conditions;
+    conditions.autonomy_allowed = true;
     conditions.motion_locked = false;
     conditions.battery_fraction = 0.8;
 
@@ -37,6 +38,7 @@ TEST(MissionPolicyTest, HoldsWhileTheMotionLockIsEngaged)
     MissionPolicy policy(0.10);
 
     RoverConditions conditions;
+    conditions.autonomy_allowed = true;
     conditions.motion_locked = true;
     conditions.battery_fraction = 0.8;
 
@@ -47,8 +49,10 @@ TEST(MissionPolicyTest, DefaultConditionsAreFailSafe)
 {
     MissionPolicy policy(0.10);
 
-    // A default-constructed RoverConditions means "nothing heard yet", which must not drive.
-    EXPECT_EQ(policy.decide(RoverConditions{}), MissionAction::kHold);
+    // A default-constructed RoverConditions means "nothing heard yet", which must not drive:
+    // not even the driving mode is known, so the mission is cancelled rather than held.
+    EXPECT_EQ(policy.decide(RoverConditions{}), MissionAction::kCancel);
+    EXPECT_FALSE(policy.mayAccept(RoverConditions{}));
 }
 
 TEST(MissionPolicyTest, AbortsOnAFlatBattery)
@@ -56,6 +60,7 @@ TEST(MissionPolicyTest, AbortsOnAFlatBattery)
     MissionPolicy policy(0.10);
 
     RoverConditions conditions;
+    conditions.autonomy_allowed = true;
     conditions.motion_locked = false;
     conditions.battery_fraction = 0.05;
 
@@ -67,6 +72,7 @@ TEST(MissionPolicyTest, AFlatBatteryAbortsEvenWhileLocked)
     MissionPolicy policy(0.10);
 
     RoverConditions conditions;
+    conditions.autonomy_allowed = true;
     conditions.motion_locked = true;
     conditions.battery_fraction = 0.05;
 
@@ -79,6 +85,7 @@ TEST(MissionPolicyTest, AnUnknownBatteryIsNotTreatedAsFlat)
     MissionPolicy policy(0.10);
 
     RoverConditions conditions;
+    conditions.autonomy_allowed = true;
     conditions.motion_locked = false;
     conditions.battery_fraction = -1.0;
 
@@ -101,6 +108,7 @@ TEST(MissionPolicyTest, HoldsWhenTheLidarIsUnhealthy)
     MissionPolicy policy(0.10);
 
     RoverConditions conditions;
+    conditions.autonomy_allowed = true;
     conditions.motion_locked = false;
     conditions.battery_fraction = 0.8;
     conditions.lidar_health = SensorHealth::kUnhealthy;
@@ -115,6 +123,7 @@ TEST(MissionPolicyTest, ProceedsWhenTheLidarIsHealthy)
     MissionPolicy policy(0.10);
 
     RoverConditions conditions;
+    conditions.autonomy_allowed = true;
     conditions.motion_locked = false;
     conditions.battery_fraction = 0.8;
     conditions.lidar_health = SensorHealth::kHealthy;
@@ -127,6 +136,7 @@ TEST(MissionPolicyTest, AnUnknownLidarProceedsByDefault)
     MissionPolicy policy(0.10);
 
     RoverConditions conditions;
+    conditions.autonomy_allowed = true;
     conditions.motion_locked = false;
     conditions.battery_fraction = 0.8;
     conditions.lidar_health = SensorHealth::kUnknown;
@@ -141,6 +151,7 @@ TEST(MissionPolicyTest, AnUnknownLidarHoldsWhenTheLidarIsRequired)
     MissionPolicy policy(0.10, /*require_lidar=*/true);
 
     RoverConditions conditions;
+    conditions.autonomy_allowed = true;
     conditions.motion_locked = false;
     conditions.battery_fraction = 0.8;
     conditions.lidar_health = SensorHealth::kUnknown;
@@ -154,6 +165,7 @@ TEST(MissionPolicyTest, AHealthyLidarStillProceedsWhenRequired)
     MissionPolicy policy(0.10, /*require_lidar=*/true);
 
     RoverConditions conditions;
+    conditions.autonomy_allowed = true;
     conditions.motion_locked = false;
     conditions.battery_fraction = 0.8;
     conditions.lidar_health = SensorHealth::kHealthy;
@@ -166,6 +178,7 @@ TEST(MissionPolicyTest, AFlatBatteryAbortsEvenWithADeadLidar)
     MissionPolicy policy(0.10);
 
     RoverConditions conditions;
+    conditions.autonomy_allowed = true;
     conditions.motion_locked = false;
     conditions.battery_fraction = 0.05;
     conditions.lidar_health = SensorHealth::kUnhealthy;
@@ -179,6 +192,7 @@ TEST(MissionPolicyTest, ADeadLidarHoldsEvenWhenTheMotionLockIsAlsoEngaged)
     MissionPolicy policy(0.10);
 
     RoverConditions conditions;
+    conditions.autonomy_allowed = true;
     conditions.motion_locked = true;
     conditions.battery_fraction = 0.8;
     conditions.lidar_health = SensorHealth::kUnhealthy;
@@ -189,4 +203,65 @@ TEST(MissionPolicyTest, ADeadLidarHoldsEvenWhenTheMotionLockIsAlsoEngaged)
 TEST(MissionPolicyTest, RequireLidarDefaultsToFalse)
 {
     EXPECT_FALSE(MissionPolicy(0.10).requireLidar());
+}
+
+// --- Driving mode -----------------------------------------------------------------------
+//
+// rover_drive_mode's AUTOMATIC is the operator handing the rover to the mission manager.
+// Leaving it (a mode switch, or a joystick takeover) takes the rover back for good.
+
+TEST(MissionPolicyTest, CancelsWhenTheDrivingModeLeavesAutomatic)
+{
+    MissionPolicy policy(0.10);
+
+    RoverConditions conditions;
+    conditions.autonomy_allowed = false;
+    conditions.motion_locked = false;
+    conditions.battery_fraction = 0.8;
+
+    EXPECT_EQ(policy.decide(conditions), MissionAction::kCancel);
+}
+
+TEST(MissionPolicyTest, LeavingAutomaticCancelsRatherThanHoldsWhileLocked)
+{
+    MissionPolicy policy(0.10);
+
+    RoverConditions conditions;
+    conditions.autonomy_allowed = false;
+    conditions.motion_locked = true;
+    conditions.battery_fraction = 0.8;
+    conditions.lidar_health = SensorHealth::kUnhealthy;
+
+    // A hold would resume by itself the moment AUTOMATIC is selected again.
+    EXPECT_EQ(policy.decide(conditions), MissionAction::kCancel);
+}
+
+TEST(MissionPolicyTest, AFlatBatteryStillAbortsOutsideAutomatic)
+{
+    MissionPolicy policy(0.10);
+
+    RoverConditions conditions;
+    conditions.autonomy_allowed = false;
+    conditions.battery_fraction = 0.05;
+
+    EXPECT_EQ(policy.decide(conditions), MissionAction::kAbort);
+}
+
+TEST(MissionPolicyTest, AcceptsMissionsOnlyInAutomatic)
+{
+    MissionPolicy policy(0.10);
+
+    RoverConditions conditions;
+    conditions.motion_locked = false;
+    conditions.battery_fraction = 0.8;
+
+    conditions.autonomy_allowed = false;
+    EXPECT_FALSE(policy.mayAccept(conditions));
+
+    conditions.autonomy_allowed = true;
+    EXPECT_TRUE(policy.mayAccept(conditions));
+
+    // A motion lock is a pause, not a reason to refuse: the mission waits for it to clear.
+    conditions.motion_locked = true;
+    EXPECT_TRUE(policy.mayAccept(conditions));
 }

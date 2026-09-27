@@ -23,6 +23,7 @@
 #include <diagnostic_msgs/msg/diagnostic_array.hpp>
 #include <nav2_ros_common/lifecycle_node.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <rover_msgs/msg/drive_mode.hpp>
 #include <rover_msgs/srv/set_mission.hpp>
 #include <sensor_msgs/msg/battery_state.hpp>
 #include <std_msgs/msg/bool.hpp>
@@ -96,6 +97,7 @@ private:
     std::unique_ptr<application::RunMissionUseCase> run_mission_use_case_;
 
     rclcpp::TimerBase::SharedPtr mission_tree_timer_;
+    rclcpp::Subscription<rover_msgs::msg::DriveMode>::SharedPtr drive_mode_sub_;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr motion_lock_sub_;
     rclcpp::Subscription<sensor_msgs::msg::BatteryState>::SharedPtr battery_sub_;
     rclcpp::Subscription<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr diagnostics_sub_;
@@ -105,6 +107,7 @@ private:
     std::string goal_frame_id_;
     std::size_t missions_accepted_ = 0;
 
+    std::atomic<bool> automatic_mode_;
     std::atomic<bool> motion_locked_;
     std::atomic<bool> motion_lock_received_;
     std::atomic<rcl_time_point_value_t> motion_lock_stamp_ns_;

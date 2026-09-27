@@ -9,6 +9,9 @@ Mechatronics Academy's Rover A1 autonomy stack, running on the orchestrator comp
 - [`rover_indoor_nav_manager`](rover_indoor_nav_manager/README.md) - indoor map library,
   places and runtime SLAM ↔ AMCL switching (`localization_source:=indoor`) for the
   rover_drive_interface web UI.
+- [`rover_drive_mode`](rover_drive_mode/README.md) - the driving modes (Manual, Assisted with
+  lidar slow-down/stop, Automatic): routes the web UI's joystick and Nav 2's commands to the
+  platform according to the mode.
 - [`rover_autonomy`](rover_autonomy/README.md) - metapackage grouping them.
 
 ## Quick start
