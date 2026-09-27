@@ -72,18 +72,20 @@
       FollowPath:
         plugin: nav2_rotation_shim_controller::RotationShimController
         rotate_to_goal_heading: true
-        # The only in-place rate shown to turn the rover (see above). Do not lower it below the
-        # breakaway rate; wz_max, the velocity_smoother and diff_drive all allow 1.0.
-        rotate_to_heading_angular_vel: 1.0
+        # Do not lower it below the breakaway rate (see above). 1.0 turned the rover but
+        # under-drove the wheels (1.6 of ~3.1 rad/s reference): the wheel PIDs are
+        # feedforward-dominated with a clamped I term, so only a higher reference raises the
+        # motor duty. wz_max, the velocity_smoother, Spin and diff_drive all allow 1.5.
+        rotate_to_heading_angular_vel: 1.5
         max_angular_accel: 2.0
         # Must stay false. Closed loop limits each command to the *measured* yaw rate plus
         # max_angular_accel * dt, and a stalled rover measures 0, so the command would stay
         # at ~0.2 rad/s and never break it free.
         closed_loop: false
-        # Above pi, so the shim never rotates to the path heading before driving: MPPI keeps
-        # approaching goals behind the rover in reverse, as before. Set to ~0.785 to make the
-        # rover face the path first instead.
-        angular_dist_threshold: 3.2
+        # MPPI cannot reverse (vx_min 0.0), so the shim turns the rover to face the path at
+        # rotate_to_heading_angular_vel before MPPI drives. Otherwise MPPI would turn in place at
+        # the low yaw rates that stall this skid-steer.
+        angular_dist_threshold: 0.785
         forward_sampling_distance: 0.5
         simulate_ahead_time: 1.0
         rotate_to_heading_once: false
@@ -99,9 +101,11 @@
           vy_std: 0.0
           wz_std: 0.5
           vx_max: 0.8
-          vx_min: -0.5
+          # 0.0 disables reverse driving on purpose: MPPI never samples a negative vx. The
+          # BackUp recovery still reverses (the velocity_smoother keeps a negative x limit).
+          vx_min: 0.0
           vy_max: 0.0
-          wz_max: 1.0
+          wz_max: 1.5
           # Must stay consistent with velocity_smoother max_accel / max_decel below,
           # otherwise MPPI plans stops the hardware cannot execute and overshoots.
           ax_max: 1.5
@@ -480,8 +484,9 @@
       simulate_ahead_time: 2.0
 
       # spin
-      max_rotational_vel: 1.0
-      min_rotational_vel: 0.4
+      max_rotational_vel: 1.5
+      # 0.4 rad/s stalls the wheels on this skid-steer (measured 2026-09-26).
+      min_rotational_vel: 1.0
       rotational_acc_lim: 3.2
 
   waypoint_follower:
@@ -502,8 +507,9 @@
       smoothing_frequency: 20.0
       scale_velocities: False
       feedback: OPEN_LOOP
-      max_velocity: [0.8, 0.0, 1.0]
-      min_velocity: [-0.5, 0.0, -1.0]
+      max_velocity: [0.8, 0.0, 1.5]
+      # Negative x stays: the BackUp recovery is published through the smoother.
+      min_velocity: [-0.5, 0.0, -1.5]
       max_accel: [1.5, 0.0, 2.0]
       max_decel: [-1.5, 0.0, -2.0]
       odom_topic: <namespace>/odom
