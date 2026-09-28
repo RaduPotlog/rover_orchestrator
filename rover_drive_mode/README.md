@@ -103,9 +103,10 @@ zone is picked from the **commanded** velocity: turning in place, driving forwar
 backward. An obstacle ahead therefore does not block backing away. The forward and reverse zones
 start at the footprint edge; the turn-in-place zone covers the swept corner radius (0.608 m).
 
-- **Prerequisite on hardware:** the lidar support post sits inside the footprint, so the
-  turn-in-place zone sees it unless `rover_rs16_lidar`'s `scan.self_filter` hides it. Re-measure
-  and enable the self-filter before relying on ASSISTED.
+- **Self-hits:** the turn-in-place zone cannot exclude the rover's own body (polygons have no
+  holes), so any part of the rover the lidar sees inside it would block turning in place. The
+  current lidar mount sees none (2026-09-28). If a future mount does, hide it with
+  `rover_rs16_lidar`'s `scan.self_filter`.
 - **All zone sizes and `slowdown_ratio` are tunables.** Measure the stop distance on the rover.
 - `source_timeout: 0.5` s: a scan older than that stops the rover (`NO_DATA`).
 - `base_shift_correction: false`: the guard needs only the static `lidar_link → base_link`

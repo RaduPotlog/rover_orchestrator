@@ -7,9 +7,9 @@
 #   padded footprint   x +-0.4566, y +-0.4015   (the 0.913 x 0.803 Nav 2 footprint)
 #   corner radius      0.608                    (what a turn in place sweeps)
 # The forward/reverse zones start at the footprint edge, so points on the rover itself never
-# trip them. The turn-in-place zone cannot exclude the body (polygons have no holes), so it
-# needs the lidar self-filter (rover_rs16_lidar scan.self_filter) to hide the lidar support
-# post; without it, turning in place is always blocked in ASSISTED.
+# trip them. The turn-in-place zone cannot exclude the body (polygons have no holes): any part
+# of the rover the lidar sees inside it would block turning in place. The current mount sees
+# none (2026-09-28); if a future one does, hide it with rover_rs16_lidar's scan.self_filter.
 #
 # Every number below the geometry block is a TUNABLE, sized for the UI's 1.0 m/s cap: at the
 # 0.4 slow-down ratio the rover crosses the 0.34 m stop depth in ~0.85 s, versus ~0.25 s of
