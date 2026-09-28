@@ -62,6 +62,7 @@ bool Nav2NavigationAdapter::goTo(const domain::Waypoint & waypoint)
         std::lock_guard<std::mutex> lock(mutex_);
         generation = ++generation_;
         goal_handle_.reset();
+        endDrainLocked();
         result_ = NavigationResult::kPending;
     }
 
@@ -92,6 +93,14 @@ void Nav2NavigationAdapter::goalResponseCb(
             if (goal_handle == nullptr) {
                 result_ = NavigationResult::kFailed;
             }
+        } else if (draining_ && generation == draining_generation_) {
+            if (goal_handle == nullptr) {
+                // Rejected: there is nothing for Nav 2 to wind down.
+                endDrainLocked();
+                return;
+            }
+            // Accepted after cancel(): keep the handle so its result ends the drain.
+            draining_handle_ = goal_handle;
         } else if (goal_handle == nullptr) {
             return;
         }
@@ -116,7 +125,10 @@ void Nav2NavigationAdapter::resultCb(
 
     if (generation != generation_) {
         // A goal we already cancelled or replaced. Its ABORTED or CANCELED says nothing
-        // about the goal in flight now, if any.
+        // about the goal in flight now, if any - but it does mean Nav 2 is done with it.
+        if (draining_ && generation == draining_generation_) {
+            endDrainLocked();
+        }
         return;
     }
 
@@ -147,14 +159,41 @@ void Nav2NavigationAdapter::cancel()
     GoalHandle::SharedPtr handle;
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        ++generation_;
+        const auto cancelled_generation = generation_++;
         handle = std::move(goal_handle_);
         goal_handle_.reset();
-        result_ = NavigationResult::kIdle;
+
+        // Only a goal still in flight needs winding down; a finished one, or a second cancel()
+        // during a drain, leaves nothing new for Nav 2 to process.
+        if (result_ == NavigationResult::kPending && !draining_) {
+            draining_ = true;
+            draining_generation_ = cancelled_generation;
+            draining_since_ = std::chrono::steady_clock::now();
+            draining_handle_ = handle;   // null when the goal response is still on its way
+        } else if (!draining_) {
+            result_ = NavigationResult::kIdle;
+        }
     }
 
     if (handle != nullptr) {
         client_->async_cancel_goal(handle);
+    }
+}
+
+void Nav2NavigationAdapter::endDrainLocked() const
+{
+    if (!draining_) {
+        return;
+    }
+
+    draining_ = false;
+    draining_handle_.reset();
+
+    // Idle only if nothing was dispatched since: goTo() ends a drain itself.
+    if (generation_ != draining_generation_ && goal_handle_ == nullptr &&
+        result_ == NavigationResult::kPending)
+    {
+        result_ = NavigationResult::kIdle;
     }
 }
 
@@ -164,6 +203,22 @@ std::uint64_t Nav2NavigationAdapter::currentGeneration() const
     return generation_;
 }
 
-NavigationResult Nav2NavigationAdapter::result() const { return result_.load(); }
+NavigationResult Nav2NavigationAdapter::result() const
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    if (draining_ && std::chrono::steady_clock::now() - draining_since_ > kDrainTimeout) {
+        // No result for the cancelled goal (Nav 2 restarting, a lost message): stop waiting
+        // rather than hold the mission forever. Worst case the next goal is rejected, which
+        // fails the mission visibly.
+        RCLCPP_WARN(
+            node_->get_logger(),
+            "No result for the cancelled navigate_to_pose goal after %lld s; dispatching anyway.",
+            static_cast<long long>(kDrainTimeout.count()));
+        endDrainLocked();
+    }
+
+    return result_.load();
+}
 
 }  // namespace rover_mission_manager::infrastructure

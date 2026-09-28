@@ -39,6 +39,13 @@ namespace rover_mission_manager::infrastructure
  * late result from a cancelled or replaced goal cannot overwrite the state of the one that
  * replaced it. Nav 2's own tree aborts on the same motion lock and lidar conditions the
  * manager holds on, so that ABORTED routinely lands after the manager's cancel().
+ *
+ * cancel() only asks Nav 2 to stop; bt_navigator keeps the goal until it has actually wound
+ * down, and rejects any navigate_to_pose that arrives meanwhile ("another navigator is
+ * processing"). So after cancelling a live goal the adapter reports kPending until that goal's
+ * result arrives (or kDrainTimeout passes), and the use case, which dispatches only on kIdle,
+ * waits. Without this, replacing a running mission (a new GoTo, or a VDA 5050 order stitch)
+ * failed its first waypoint.
  */
 class Nav2NavigationAdapter : public domain::ports::NavigationPort
 {
@@ -60,6 +67,11 @@ private:
     void goalResponseCb(const GoalHandle::SharedPtr & goal_handle, std::uint64_t generation);
     void resultCb(const GoalHandle::WrappedResult & wrapped_result, std::uint64_t generation);
     std::uint64_t currentGeneration() const;
+    /// Stop waiting for the cancelled goal. Caller holds mutex_; const for result().
+    void endDrainLocked() const;
+
+    /// Longest wait for a cancelled goal's result before dispatching anyway.
+    static constexpr std::chrono::seconds kDrainTimeout{3};
 
     rclcpp::Node * node_;
     rclcpp_action::Client<NavigateToPose>::SharedPtr client_;
@@ -67,13 +79,22 @@ private:
     std::chrono::duration<double> server_timeout_;
 
     // Written from action-client callbacks, read from the manager's timer thread.
-    std::atomic<domain::ports::NavigationResult> result_;
+    // mutable: result() ends a drain that timed out.
+    mutable std::atomic<domain::ports::NavigationResult> result_;
 
     // Guards generation_ and goal_handle_, and makes a callback's "is this still my goal?"
     // check atomic with the result_ write that follows it.
     mutable std::mutex mutex_;
     std::uint64_t generation_{0};
     GoalHandle::SharedPtr goal_handle_;
+
+    // The cancelled goal Nav 2 is still winding down, if any (see the class comment). Its
+    // handle is kept: rclcpp_action delivers a result only while someone holds the handle.
+    // mutable: result() ends a drain that timed out.
+    mutable bool draining_{false};
+    mutable std::uint64_t draining_generation_{0};
+    mutable std::chrono::steady_clock::time_point draining_since_;
+    mutable GoalHandle::SharedPtr draining_handle_;
 };
 
 }  // namespace rover_mission_manager::infrastructure

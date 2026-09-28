@@ -198,3 +198,44 @@ TEST_F(Nav2NavigationAdapterTest, TreatsSomeoneElsesCancelAsAFailure)
     navigator_->goals.back()->canceled(emptyResult());
     EXPECT_TRUE(spinUntil([&] { return adapter_->result() == NavigationResult::kFailed; }));
 }
+
+TEST_F(Nav2NavigationAdapterTest, WaitsForACancelledGoalBeforeReportingIdle)
+{
+    // Replacing a running mission: bt_navigator rejects a new goal until the cancelled one has
+    // wound down, so the adapter must not report kIdle (which dispatches) before that.
+    startGoal();
+    spinFor(300ms);
+    adapter_->cancel();
+    ASSERT_TRUE(spinUntil([&] { return navigator_->cancel_requests == 1; }));
+
+    spinFor(300ms);
+    EXPECT_EQ(adapter_->result(), NavigationResult::kPending);
+
+    navigator_->goals.back()->canceled(emptyResult());
+    EXPECT_TRUE(spinUntil([&] { return adapter_->result() == NavigationResult::kIdle; }));
+
+    // And the next goal goes out normally.
+    startGoal();
+    navigator_->goals.back()->succeed(emptyResult());
+    EXPECT_TRUE(spinUntil([&] { return adapter_->result() == NavigationResult::kReached; }));
+}
+
+TEST_F(Nav2NavigationAdapterTest, StopsWaitingForACancelledGoalAfterATimeout)
+{
+    startGoal();
+    spinFor(300ms);
+    adapter_->cancel();
+
+    // The fake navigator never finishes the goal.
+    EXPECT_TRUE(spinUntil([&] { return adapter_->result() == NavigationResult::kIdle; }, 5s));
+}
+
+TEST_F(Nav2NavigationAdapterTest, CancellingWithNothingInFlightIsIdleAtOnce)
+{
+    startGoal();
+    navigator_->goals.back()->succeed(emptyResult());
+    ASSERT_TRUE(spinUntil([&] { return adapter_->result() == NavigationResult::kReached; }));
+
+    adapter_->cancel();
+    EXPECT_EQ(adapter_->result(), NavigationResult::kIdle);
+}
