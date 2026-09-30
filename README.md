@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="icons/Logo-Arm-WhiteOrange-372x372-1.png" alt="Mechatronics Academy" width="140">
+</p>
+
 # rover_orchestrator
 
 Mechatronics Academy's Rover A1 autonomy stack, running on the orchestrator computer.
