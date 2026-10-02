@@ -29,8 +29,8 @@ from launch.substitutions import (
     PathJoinSubstitution,
     PythonExpression,
 )
-from launch_ros.actions import LoadComposableNodes, Node, PushRosNamespace
-from launch_ros.descriptions import ComposableNode, ParameterFile
+from launch_ros.actions import Node, PushRosNamespace
+from launch_ros.descriptions import ParameterFile
 from launch_ros.substitutions import FindPackageShare
 from nav2_common.launch import ReplaceString, RewrittenYaml
 
@@ -44,7 +44,6 @@ def generate_launch_description():
     maps_dir = LaunchConfiguration("maps_dir")
     namespace = LaunchConfiguration("namespace")
     observation_topic = LaunchConfiguration("observation_topic")
-    observation_topic_type = LaunchConfiguration("observation_topic_type")
     localization_source = LaunchConfiguration("localization_source")
     initial_pose_x = LaunchConfiguration("initial_pose_x")
     initial_pose_y = LaunchConfiguration("initial_pose_y")
@@ -92,20 +91,9 @@ def generate_launch_description():
         "observation_topic",
         default_value="scan",
         description=(
-            "Topic feeding the costmaps' stvl_layer. With observation_topic_type:=laserscan "
-            "this is rover_rs16_lidar's LaserScan ('scan'). With pointcloud it is the raw cloud "
-            "('rslidar_points'), which pointcloud_crop_box self-filters into "
-            "<observation_topic>_filtered."
+            "LaserScan topic for the costmaps' stvl_layer, AMCL and slam_toolbox. "
+            "rover_rs16_lidar publishes it as 'scan'."
         ),
-    )
-    declare_observation_topic_type_arg = DeclareLaunchArgument(
-        "observation_topic_type",
-        default_value="laserscan",
-        description=(
-            "Observation topic type. 'laserscan' consumes rover_rs16_lidar's flattened scan "
-            "directly; 'pointcloud' runs pointcloud_crop_box over the raw RS16 cloud first."
-        ),
-        choices=["laserscan", "pointcloud"],
     )
     declare_params_file_arg = DeclareLaunchArgument(
         "params_file",
@@ -189,19 +177,6 @@ def generate_launch_description():
     param_substitutions = {"use_sim_time": use_sim_time, "yaml_filename": map}
 
     namespace_ext = PythonExpression(["'", namespace, "' + '/' if '", namespace, "' else ''"])
-    # What amcl and slam_toolbox subscribe to. Both need a LaserScan, so in pointcloud mode
-    # observation_topic names a PointCloud2 and cannot be used here -- fall back to 'scan',
-    # which rover_rs16_lidar publishes in both modes (its scan projection always runs).
-    scan_topic = PythonExpression(
-        [
-            "'scan' if '",
-            observation_topic_type,
-            "' == 'pointcloud' else '",
-            observation_topic,
-            "'",
-        ]
-    )
-
     slam = PythonExpression(["'", localization_source, "' == 'slam'"])
     indoor = PythonExpression(["'", localization_source, "' == 'indoor'"])
     # localization.launch.py (map_server, + AMCL for 'amcl') runs for every fixed mode; slam
@@ -234,17 +209,10 @@ def generate_launch_description():
         "rover_a1": {
             "min_x": round(-half_length - bb_padding, 4),
             "min_y": round(-half_width - bb_padding, 4),
-            "min_z": 0.05,
             "max_x": round(half_length + bb_padding, 4),
             "max_y": round(half_width + bb_padding, 4),
-            "max_z": 0.5,
         },
     }
-    # Output of pointcloud_crop_box, and the topic the stvl_layer's `pointcloud` source
-    # reads. Only produced in pointcloud mode.
-    observation_topic_filtered = PythonExpression(
-        ["'", observation_topic, "_filtered'"],
-    )
 
     def override_params_file(robot_model_name):
         bounding_box = robot_bounding_box[robot_model_name]
@@ -256,12 +224,8 @@ def generate_launch_description():
                 "<max_x>": str(bounding_box["max_x"]),
                 "<min_y>": str(bounding_box["min_y"]),
                 "<max_y>": str(bounding_box["max_y"]),
-                "<min_z>": str(bounding_box["min_z"]),
-                "<max_z>": str(bounding_box["max_z"]),
                 "<global_frame>": global_frame,
                 "<observation_topic>": observation_topic,
-                "<observation_topic_type>": observation_topic_type,
-                "<scan_topic>": scan_topic,
             },
             condition=IfCondition(
                 PythonExpression(["'", robot_model, f"' == '{robot_model_name}'"])
@@ -284,52 +248,6 @@ def generate_launch_description():
     bringup_cmd_group = GroupAction(
         [
             PushRosNamespace(namespace),
-            # Strips the rover's own body out of the raw RS16 cloud before it reaches the
-            # costmaps. Only needed on the pointcloud path: in laserscan mode the stvl_layer
-            # clears the footprint itself via update_footprint_enabled.
-            #
-            # There is deliberately NO cloud-to-scan conversion here -- rover_rs16_lidar owns
-            # that conversion and already publishes <ns>/scan, so a second one would
-            # double-publish the topic.
-            #
-            # With composition it is loaded into nav2_container, next to the costmaps that
-            # consume its output: the filtered cloud (~4-5 MB/s) then never leaves the process,
-            # where as its own process it crossed the Zenoh router a second time.
-            LoadComposableNodes(
-                condition=IfCondition(
-                    PythonExpression(
-                        [
-                            "'", observation_topic_type, "' == 'pointcloud' and '",
-                            use_composition, "'.lower() == 'true'",
-                        ]
-                    )
-                ),
-                target_container=(namespace, "/", "nav2_container"),
-                composable_node_descriptions=[
-                    ComposableNode(
-                        package="pointcloud_crop_box",
-                        plugin="pointcloud_crop_box::PointCloudCropBoxNode",
-                        name="pointcloud_crop_box",
-                        parameters=[configured_params],
-                    ),
-                ],
-            ),
-            Node(
-                condition=IfCondition(
-                    PythonExpression(
-                        [
-                            "'", observation_topic_type, "' == 'pointcloud' and '",
-                            use_composition, "'.lower() != 'true'",
-                        ]
-                    )
-                ),
-                package="pointcloud_crop_box",
-                executable="pointcloud_crop_box_node",
-                name="pointcloud_crop_box",
-                parameters=[configured_params],
-                arguments=["--ros-args", "--log-level", log_level],
-                output="screen",
-            ),
             Node(
                 condition=IfCondition(use_composition),
                 name="nav2_container",
@@ -428,7 +346,6 @@ def generate_launch_description():
             declare_maps_dir_arg,
             declare_namespace_arg,
             declare_observation_topic_arg,
-            declare_observation_topic_type_arg,
             declare_params_file_arg,
             declare_localization_source_arg,
             declare_initial_pose_x_arg,

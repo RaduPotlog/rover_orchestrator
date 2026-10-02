@@ -43,10 +43,6 @@
   <exec_depend>nav2_smoother</exec_depend>
   <exec_depend>nav2_velocity_smoother</exec_depend>
   <exec_depend>nav2_waypoint_follower</exec_depend>
-  <!-- Self-filter for the pointcloud path. Source-only; pinned in
-       rover_autonomy/autonomy_deps.repos. The repo is rover_pointcloud_crop_box, the
-       package inside it is pointcloud_crop_box. -->
-  <exec_depend>pointcloud_crop_box</exec_depend>
   <!-- bringup.launch.py spawns component_container_isolated as nav2_container
        (use_composition defaults to True). -->
   <exec_depend>rclcpp_components</exec_depend>

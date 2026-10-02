@@ -42,15 +42,6 @@ export ROS_DISTRO=lyrical
 export ROVER_NAMESPACE=rover
 ```
 
-### Clone dependency
-
-```bash
-vcs import src < src/rover_orchestrator/rover_autonomy/autonomy_deps.repos
-```
-
-Only needed for `observation_topic_type:=pointcloud`, which runs `pointcloud_crop_box` over
-the raw lidar cloud. Every `nav2_*` package, `nav2_smac_planner` included, comes from apt.
-
 ### Build
 
 ```bash

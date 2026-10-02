@@ -18,14 +18,9 @@ source install/setup.bash
 
 `autonomy_deps.repos` is the extension point for external sources, in the same spirit as
 `rover_ros`'s `hardware_deps.repos` / `simulation_deps.repos`. Every `nav2_*` package,
-`nav2_smac_planner` included, comes from apt through rosdep. The file pins:
-
-- [`rover_pointcloud_crop_box`](https://github.com/RaduPotlog/rover_pointcloud_crop_box), the
-  self-filter `rover_navigation` uses on its pointcloud path. Only used with
-  `observation_topic_type:=pointcloud`; the default laserscan path consumes
-  `rover_rs16_lidar`'s `<namespace>/scan` directly.
-
-Import it when you use the pointcloud path:
+`nav2_smac_planner` included, comes from apt through rosdep. The file pins nothing today;
+importing it is still part of the orchestrator image build, so a new entry needs no Dockerfile
+change:
 
 ```bash
 vcs import src < src/rover_orchestrator/rover_autonomy/autonomy_deps.repos

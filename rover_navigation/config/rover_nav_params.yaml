@@ -190,32 +190,6 @@
           #   twirling_cost_power: 1
           #   twirling_cost_weight: 10.0
 
-  # Self-filter for the pointcloud path. Only launched when observation_topic_type:=pointcloud
-  # (see bringup.launch.py); the default laserscan path does not use it, because STVL's
-  # update_footprint_enabled already clears the footprint out of <ns>/scan.
-  #
-  # The crop box is the robot's own bounding box, substituted from the same <min_x>..<max_z>
-  # tokens as the Nav 2 footprint, so the two can never drift apart. `negative: false` keeps
-  # everything *outside* the box.
-  pointcloud_crop_box:
-    ros__parameters:
-      input_topic: <observation_topic>
-      output_topic: <observation_topic>_filtered
-      target_frame: <namespace>/base_link
-      message_type: pointcloud
-      negative: false
-      # Off: the markers were published with every cloud (10 Hz) and nothing displays them.
-      visualize_crop_boxes: false
-      crop_boxes_names: [robot_box]
-      crop_boxes:
-        robot_box:
-          min_x: <min_x>
-          max_x: <max_x>
-          min_y: <min_y>
-          max_y: <max_y>
-          min_z: <min_z>
-          max_z: <max_z>
-
   local_costmap:
     local_costmap:
       ros__parameters:
@@ -261,32 +235,8 @@
           transform_tolerance: 0.2
           mapping_mode: false
           map_save_duration: 60.0
-          # Resolves to `laserscan` or `pointcloud`, which selects the matching block below.
-          observation_sources: <observation_topic_type>
-          # Fed by pointcloud_crop_box, which self-filters <ns>/rslidar_points. Only runs
-          # when observation_topic_type:=pointcloud; pass observation_topic:=rslidar_points.
-          pointcloud:
-            data_type: PointCloud2
-            topic: <observation_topic>_filtered
-            marking: true
-            clearing: true
-            obstacle_range: 3.0
-            min_obstacle_height: 0.0
-            max_obstacle_height: 2.0
-            expected_update_rate: 0.5
-            observation_persistence: 0.0
-            inf_is_valid: false
-            filter: "voxel"
-            voxel_min_points: 2
-            clear_after_reading: true
-            max_z: 2.0
-            min_z: -0.5
-            # RS16 geometry: +/-15 deg vertical, 360 deg horizontal.
-            vertical_fov_angle: 0.524
-            horizontal_fov_angle: 6.2832
-            decay_acceleration: 15.0
-            model_type: 0
-          # The default path: <ns>/scan, projected from the RS16 cloud by rover_rs16_lidar.
+          observation_sources: laserscan
+          # <ns>/scan, projected from the RS16 cloud by rover_rs16_lidar.
           laserscan:
             data_type: LaserScan
             topic: <observation_topic>
@@ -367,32 +317,8 @@
           transform_tolerance: 0.2
           mapping_mode: false
           map_save_duration: 60.0
-          # Resolves to `laserscan` or `pointcloud`, which selects the matching block below.
-          observation_sources: <observation_topic_type>
-          # Fed by pointcloud_crop_box, which self-filters <ns>/rslidar_points. Only runs
-          # when observation_topic_type:=pointcloud; pass observation_topic:=rslidar_points.
-          pointcloud:
-            data_type: PointCloud2
-            topic: <observation_topic>_filtered
-            marking: true
-            clearing: true
-            obstacle_range: 8.0
-            min_obstacle_height: 0.0
-            max_obstacle_height: 2.0
-            expected_update_rate: 0.5
-            observation_persistence: 0.0
-            inf_is_valid: false
-            filter: "voxel"
-            voxel_min_points: 2
-            clear_after_reading: true
-            max_z: 2.0
-            min_z: -0.5
-            # RS16 geometry: +/-15 deg vertical, 360 deg horizontal.
-            vertical_fov_angle: 0.524
-            horizontal_fov_angle: 6.2832
-            decay_acceleration: 15.0
-            model_type: 0
-          # The default path: <ns>/scan, projected from the RS16 cloud by rover_rs16_lidar.
+          observation_sources: laserscan
+          # <ns>/scan, projected from the RS16 cloud by rover_rs16_lidar.
           laserscan:
             data_type: LaserScan
             topic: <observation_topic>
@@ -602,7 +528,7 @@
       observation_sources: [scan]
       scan:
         type: scan
-        topic: <scan_topic>
+        topic: <observation_topic>
         enabled: true
 
   ### LOCALIZATION ###
@@ -624,7 +550,7 @@
       # either way.
       base_frame_id: <namespace>/base_link
 
-      scan_topic: <scan_topic>
+      scan_topic: <observation_topic>
       # Relative on purpose: resolves to /<namespace>/map inside the pushed namespace, the
       # same latched topic global_costmap's static_layer subscribes to.
       map_topic: map
@@ -750,7 +676,7 @@
       odom_frame: <namespace>/odom
       map_frame: <namespace>/map
       base_frame: <namespace>/base_link
-      scan_topic: <scan_topic>
+      scan_topic: <observation_topic>
       mode: mapping
 
       debug_logging: false

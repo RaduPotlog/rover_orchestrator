@@ -101,6 +101,10 @@ if(BUILD_TESTING)
     # which forwards it only in AUTOMATIC), in both composition branches.
     ament_add_pytest_test(test_nav_launch test/launch/test_nav_launch.py)
 
+    # Every <token> in rover_nav_params.yaml must be one bringup.launch.py replaces; a stray
+    # one becomes a literal topic or frame name rather than an error.
+    ament_add_pytest_test(test_bringup_params test/launch/test_bringup_params.py)
+
     ament_add_gtest(test_map_autosave_policy test/unit/test_map_autosave_policy.cpp)
     target_link_libraries(test_map_autosave_policy ${PROJECT_NAME}_core)
 

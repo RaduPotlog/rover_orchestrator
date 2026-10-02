@@ -46,11 +46,9 @@ When navigation runs on a different machine than the rover, both must share the 
 ## Config Files
 
 - `config/rover_nav_params.yaml` - parameters for every Nav 2 node, in a single `/**:`
-  block. The `<namespace>`, `<min_x>`/`<max_x>`/`<min_y>`/`<max_y>`/`<min_z>`/`<max_z>`,
-  `<observation_topic>`, `<observation_topic_type>`, `<scan_topic>` and `<global_frame>`
-  placeholders are substituted at launch time by `bringup.launch.py`. The
-  `<min_x>`..`<max_z>` box sizes both the Nav 2 footprint and `pointcloud_crop_box`'s
-  self-filter, so the two cannot drift apart.
+  block. The `<namespace>`, `<min_x>`/`<max_x>`/`<min_y>`/`<max_y>` (the footprint),
+  `<observation_topic>` and `<global_frame>` placeholders are substituted at launch time by
+  `bringup.launch.py`; `test_bringup_params` fails on any placeholder it does not replace.
 - `map/empty_world.yaml` + `map/empty_world.png` - default empty map, 50 x 50 m at
   0.1 m/px.
 - `map/rover_map_server.yaml` - a `map_server` parameter snippet, not a map.
@@ -125,8 +123,7 @@ Arguments of `bringup.launch.py` (`ros2 launch rover_navigation bringup.launch.p
 | `log_level` | `info` | Logging level: `debug`, `info`, `warning`, `error`. |
 | `map` | `empty_world.yaml` | Map yaml file to load. Pass an absolute path. |
 | `namespace` | `$ROVER_NAMESPACE`, else `$ROBOT_NAMESPACE`, else empty | Namespace applied to all launched nodes. |
-| `observation_topic` | `scan` | Topic feeding the costmaps' `stvl_layer`. `scan` with `observation_topic_type:=laserscan`; `rslidar_points` with `pointcloud`. |
-| `observation_topic_type` | `laserscan` | `laserscan` consumes `rover_rs16_lidar`'s flattened scan directly; `pointcloud` runs `pointcloud_crop_box` over the raw RS16 cloud first. |
+| `observation_topic` | `scan` | `LaserScan` topic for the costmaps' `stvl_layer`, AMCL and slam_toolbox; `rover_rs16_lidar` publishes it. |
 | `params_file` | `<share>/rover_navigation/config/rover_nav_params.yaml` | Parameter file for all Nav 2 nodes. |
 | `robot_model` | `$ROBOT_MODEL_NAME`, else `rover_a1` | Robot model; selects the footprint bounding box. |
 | `localization_source` | `odom` | Where the Nav 2 global frame comes from: `odom`, `gps`, `slam`, `amcl` or `indoor`. Replaces the old `slam` boolean. See below. |
@@ -358,14 +355,9 @@ The goal `frame_id` must match the mode: **`rover/odom`** with `localization_sou
   that visibly jitters between two hypotheses at the rate difference of the two publishers.
   `ros2 run tf2_ros tf2_monitor rover/map rover/odom` names every broadcaster; expect exactly
   one.
-- **`observation_topic_type` picks between two working pipelines.** `laserscan` (the
-  default) feeds the `stvl_layer` from `rover_rs16_lidar`'s `<namespace>/scan` directly. `pointcloud`
-  runs `pointcloud_crop_box` over the raw `<namespace>/rslidar_points`, publishing
-  `<observation_topic>_filtered` for the layer's `pointcloud` source — so pass
-  `observation_topic:=rslidar_points` with it, and `vcs import` the crop-box repo first (see
-  `rover_autonomy/autonomy_deps.repos`). Prefer `laserscan` unless you specifically want the
-  full 3D cloud: the RS16 cloud is XYZI with no `ring`/`time` fields, and it costs noticeably
-  more CPU on the orchestrator computer.
+- **The costmaps see only the flattened scan.** The `stvl_layer` reads
+  `rover_rs16_lidar`'s `<namespace>/scan`, a +/-0.25 m slice around the lidar's height, not
+  the raw `rslidar_points` cloud. An obstacle entirely below or above that slice is not marked.
 - **The local costmap stays empty and the rover drives into things.** Check, in order:
   `ros2 topic hz /<ns>/scan` (is `rover_rs16_lidar` up? It runs in `rover-a1-sensors` with
   `ROVER_USE_LIDAR=true`; see `/tmp/rover_sensors.log` there); then the `stvl_layer`'s `min_z`. `min_z`/`max_z`
