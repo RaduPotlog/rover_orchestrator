@@ -284,9 +284,11 @@
 
         update_frequency: 1.0
         # Only the drive UI's costmap overlay reads it, as a full grid (it ignores
-        # costmap_updates, so always_send_full_costmap stays on): 0.5 Hz halves what crosses the
-        # Zenoh router and the websocket, and the planner reads the costmap in-process anyway.
-        publish_frequency: 0.5
+        # costmap_updates, so always_send_full_costmap stays on), and the planner reads the
+        # costmap in-process anyway. Each grid is ~530 KB on a 32 x 41 m map: 0.2 Hz keeps the
+        # overlay at ~105 KB/s, which a remote browser on WireGuard can still carry (0.5 Hz
+        # starved its service replies, 2026-10-02).
+        publish_frequency: 0.2
 
         resolution: 0.05
 
