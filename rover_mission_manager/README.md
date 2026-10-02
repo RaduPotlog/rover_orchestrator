@@ -3,10 +3,9 @@
 Behavior-tree-driven mission supervision for the Rover A1, running on the orchestrator
 computer next to `rover_navigation`.
 
-The shape is the "manager" pattern used throughout this fleet — `rover_safety` in `rover_ros`,
-and Husarion's `lights_manager` / `safety_manager` / `docking_manager`: a plain node owns a
-BehaviorTree, ticks it once per wall-timer period, loads its leaf nodes from `.so` names given
-as parameters, and exposes the live tree to Groot2.
+The shape is the "manager" pattern used throughout this fleet (`rover_safety` in `rover_ros`
+follows it too): a plain node owns a BehaviorTree, ticks it once per wall-timer period, loads
+its leaf nodes from `.so` names given as parameters, and exposes the live tree to Groot2.
 
 ## Two layers, on purpose
 

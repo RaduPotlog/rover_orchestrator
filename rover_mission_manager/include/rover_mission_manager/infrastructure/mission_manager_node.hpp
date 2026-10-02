@@ -39,7 +39,7 @@ namespace rover_mission_manager::infrastructure
 /**
  * @brief Ticks the mission behavior tree and keeps its blackboard fed from ROS topics.
  *
- * The same shape as rover_safety's safety node and husarion's lights/safety/docking managers:
+ * The same shape as rover_safety's safety node:
  * a wall timer drives one `tickOnce()`, BT leaf plugins named by parameters do the ROS work,
  * and a Groot2 publisher exposes the tree for live inspection.
  *
