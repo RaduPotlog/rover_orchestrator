@@ -43,6 +43,7 @@ PIDS=()
 NAMES=()
 LOG_DIR=""
 CLEANING_UP=0
+PROBE_PID=""
 
 log() { printf '\033[1m[rover_sim %s]\033[0m %s\n' "$(date +%H:%M:%S)" "$*"; }
 die() { log "ERROR: $*"; exit 1; }
@@ -71,6 +72,27 @@ check_alive() {
   done
 }
 
+# Kills a process and all of its descendants.
+kill_tree() {
+  local child
+  for child in $(pgrep -P "$1" 2> /dev/null); do
+    kill_tree "$child"
+  done
+  kill -KILL "$1" 2> /dev/null
+}
+
+# Runs one probe in the background and waits for it. bash only runs a trap once the foreground
+# command has returned, so a probe run in the foreground would delay a Ctrl+C until it ends;
+# `wait` is interrupted at once.
+probe() {
+  "$@" > /dev/null 2>&1 &
+  PROBE_PID=$!
+  wait "$PROBE_PID"
+  local rc=$?
+  PROBE_PID=""
+  return "$rc"
+}
+
 # wait_for <description> <command...>: retries the command every 2 s until it succeeds,
 # failing after $TIMEOUT seconds or as soon as a started part dies.
 wait_for() {
@@ -78,7 +100,7 @@ wait_for() {
   shift
   local start=$SECONDS
   log "waiting for $what..."
-  until "$@" > /dev/null 2>&1; do
+  until probe "$@"; do
     check_alive
     if ((SECONDS - start > TIMEOUT)); then
       die "$what not ready after ${TIMEOUT} s"
@@ -114,6 +136,7 @@ cleanup() {
   ((CLEANING_UP)) && return
   CLEANING_UP=1
   trap '' INT TERM
+  [[ -n "$PROBE_PID" ]] && kill_tree "$PROBE_PID"
   local i
   for ((i = ${#PIDS[@]} - 1; i >= 0; i--)); do
     stop_group "${PIDS[$i]}" "${NAMES[$i]}"
@@ -121,24 +144,26 @@ cleanup() {
   [[ -n "$LOG_DIR" ]] && log "stopped; logs in $LOG_DIR"
 }
 
-# Every probe has a hard timeout: some ros2 CLI calls never return while a node is coming up.
-topic_has_message() { timeout 15 ros2 topic echo --no-daemon --once --timeout 5 "$1"; }
-service_available() { timeout 15 ros2 service list --no-daemon | grep -qx "$1"; }
+# Every probe has a hard timeout. -k: a ros2 CLI call stuck closing its Zenoh session ignores
+# the SIGTERM timeout sends, so it is killed 3 s later.
+topic_has_message() { timeout -k 3 15 ros2 topic echo --no-daemon --once --timeout 5 "$1"; }
+service_available() { timeout -k 3 15 ros2 service list --no-daemon | grep -qx "$1"; }
 # Nav 2's lifecycle manager answers success=True once all of its nodes are active.
 lifecycle_manager_active() {
-  timeout 15 ros2 service call "$1/is_active" std_srvs/srv/Trigger | grep -q 'success=True'
+  timeout -k 3 15 ros2 service call "$1/is_active" std_srvs/srv/Trigger | grep -q 'success=True'
 }
 router_listening() { ss -ltn | grep -qE ':7447\b'; }
 
 set_automatic() {
   local reply
-  reply="$(timeout 20 ros2 service call "/$NS/set_drive_mode" rover_msgs/srv/SetDriveMode \
+  reply="$(timeout -k 3 20 ros2 service call "/$NS/set_drive_mode" rover_msgs/srv/SetDriveMode \
     "{mode: $MODE_AUTOMATIC}" 2>&1)"
   if grep -q 'success=True' <<< "$reply"; then
     return 0
   fi
-  # Prints the refusal reason (e.g. a missing prerequisite) while wait_for keeps retrying.
-  grep -o "message='[^']*'" <<< "$reply" | head -1 | sed 's/^/    refused: /' >&2
+  # Keeps the refusal reason (e.g. a missing prerequisite) while wait_for retries.
+  printf '%s %s\n' "$(date +%T)" "$(grep -o "message='[^']*'" <<< "$reply" | head -1)" \
+    >> "$LOG_DIR/set_drive_mode.log"
   return 1
 }
 
@@ -150,7 +175,7 @@ run_stack() {
 
   # Anchored to the process itself, so a shell whose command line merely mentions these names
   # does not count.
-  local running_re='^[^ ]*/gz-sim-main |^[^ ]*python3[^ ]* [^ ]*/ros2 launch rover_(gazebo|navigation|drive_mode|mission_manager) '
+  local running_re='^[^ ]*/gz-sim-(main|gui-client) |^[^ ]*python3[^ ]* [^ ]*/ros2 launch rover_(gazebo|navigation|drive_mode|mission_manager) '
   if pgrep -f "$running_re" > /dev/null; then
     die "a simulation or orchestrator launch is already running; stop it first:
 $(pgrep -af "$running_re")"
@@ -199,7 +224,10 @@ $(pgrep -af "$running_re")"
 
   start_bg simulation ros2 launch rover_gazebo simulation.launch.py \
     namespace:="$NS" use_rviz:="$RVIZ" gz_headless_mode:="$HEADLESS"
-  wait_for "simulation clock" topic_has_message /clock
+  # Not just /clock: that also comes from a Gazebo left over from an earlier run. joint_states
+  # needs the rover spawned and its controllers active.
+  wait_for "simulation (rover spawned, controllers active)" \
+    topic_has_message "/$NS/joint_states"
 
   start_bg navigation ros2 launch rover_navigation bringup.launch.py \
     namespace:="$NS" use_sim_time:=True localization_source:="$localization" \
