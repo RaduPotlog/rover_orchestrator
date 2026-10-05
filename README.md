@@ -81,8 +81,12 @@ src/rover_orchestrator/scripts/sim/sim_nav_indoor.sh   # rover_indoor_nav_manage
 - Outside AUTOMATIC a Nav 2 goal plans but the rover does not move: Nav 2's commands reach the
   platform only through `rover_drive_mode`, and only in AUTOMATIC, which needs
   `rover_mission_manager` running.
+- The rotation shim turns at 0.7 rad/s in simulation instead of the rover's 1.5: the simulated
+  wheels have no static friction to break, and at 1.5 the rover rocked back and forth in place
+  before driving off (`ROVER_SIM_SHIM_TURN_RATE` overrides it).
 - Options (environment): `ROVER_SIM_RVIZ`, `ROVER_SIM_HEADLESS`, `ROVER_SIM_MAPS_DIR`,
-  `ROVER_SIM_LOG_DIR`, `ROVER_SIM_TIMEOUT` - see `scripts/sim/sim_nav_common.sh`.
+  `ROVER_SIM_LOG_DIR`, `ROVER_SIM_TIMEOUT`, `ROVER_SIM_SHIM_TURN_RATE` - see
+  `scripts/sim/sim_nav_common.sh`.
 
 #### Real rover:
 

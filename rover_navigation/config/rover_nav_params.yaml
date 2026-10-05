@@ -76,6 +76,7 @@
         # under-drove the wheels (1.6 of ~3.1 rad/s reference): the wheel PIDs are
         # feedforward-dominated with a clamped I term, so only a higher reference raises the
         # motor duty. wz_max, the velocity_smoother, Spin and diff_drive all allow 1.5.
+        # scripts/sim/sim_nav_common.sh lowers this to 0.7 in simulation (no stiction there).
         rotate_to_heading_angular_vel: 1.5
         max_angular_accel: 2.0
         # Must stay false. Closed loop limits each command to the *measured* yaw rate plus

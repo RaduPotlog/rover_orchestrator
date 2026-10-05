@@ -21,6 +21,7 @@
 #   ROVER_SIM_RVIZ       start RViz with the simulation         (default: True)
 #   ROVER_SIM_HEADLESS   Gazebo without its GUI                 (default: False)
 #   ROVER_SIM_TIMEOUT    seconds to wait for each part          (default: 180)
+#   ROVER_SIM_SHIM_TURN_RATE  rotation shim turn rate in rad/s  (default: 0.7, rover: 1.5)
 
 set -o pipefail
 
@@ -32,6 +33,7 @@ MAPS_DIR="${ROVER_SIM_MAPS_DIR:-$HOME/rover_sim_maps}"
 RVIZ="${ROVER_SIM_RVIZ:-True}"
 HEADLESS="${ROVER_SIM_HEADLESS:-False}"
 TIMEOUT="${ROVER_SIM_TIMEOUT:-180}"
+SHIM_TURN_RATE="${ROVER_SIM_SHIM_TURN_RATE:-0.7}"
 
 # rover_msgs/DriveMode
 MODE_AUTOMATIC=3
@@ -202,11 +204,19 @@ $(pgrep -af "$running_re")"
   LOG_DIR="${ROVER_SIM_LOG_DIR:-$HOME/.ros/rover_sim}/${localization}-$(date +%Y%m%d-%H%M%S)"
   mkdir -p "$LOG_DIR" "$MAPS_DIR" || die "cannot create $LOG_DIR or $MAPS_DIR"
 
-  # The SLAM map autosaver writes to /maps/map on the rover; point it at $MAPS_DIR here.
+  # Simulation copy of the Nav 2 parameters:
+  # - The SLAM map autosaver writes to /maps/map on the rover; point it at $MAPS_DIR.
+  # - The rotation shim turns at 1.5 rad/s on the rover to break the skid-steer's static
+  #   friction. The simulated wheels have none, and the shim does not brake before handing over
+  #   to MPPI, so at 1.5 MPPI inherits a spin it cannot absorb: it overshoots by up to 60 deg and
+  #   turns back and forth in place before driving off. 0.7 removes that.
   local params="$LOG_DIR/rover_nav_params.yaml"
-  sed "s|^\(\s*map_directory:\).*|\1 $MAPS_DIR/slam/map|" \
+  sed -e "s|^\(\s*map_directory:\).*|\1 $MAPS_DIR/slam/map|" \
+    -e "s|^\(\s*rotate_to_heading_angular_vel:\).*|\1 $SHIM_TURN_RATE|" \
     "$(ros2 pkg prefix rover_navigation)/share/rover_navigation/config/rover_nav_params.yaml" \
     > "$params" || die "cannot write $params"
+  grep -q "rotate_to_heading_angular_vel: $SHIM_TURN_RATE\$" "$params" ||
+    die "could not set rotate_to_heading_angular_vel in $params"
   mkdir -p "$MAPS_DIR/slam"
 
   trap cleanup EXIT
