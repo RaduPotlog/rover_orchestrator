@@ -59,17 +59,30 @@ source install/setup.bash
 
 #### Simulated rover:
 
-```bash
-# terminal 1 - simulator, URDF, RViz, ros2_control and EKF. Publishes the same <namespace>/scan,
-# rslidar_points and gps/fix as the rover and runs twist_mux + motion_lock like the platform;
-# ROVER_USE_GPS=true for localization_source:=gps
-ros2 launch rover_gazebo simulation.launch.py
+One script per localization source starts everything, in order and each part only once the
+previous one is up: a local Zenoh router, `rover_gazebo` (simulator, URDF, RViz, ros2_control,
+EKF, twist_mux + motion_lock), `rover_navigation`, `rover_drive_mode` and `rover_mission_manager`.
+It then switches the drive mode to AUTOMATIC, so Nav 2 goals (RViz "Nav2 Goal") drive the rover.
+One Ctrl+C stops everything, last-started first.
 
-# terminal 2 - navigation
-ros2 launch rover_navigation bringup.launch.py \
-  use_sim_time:=True \
-  map:=$(ros2 pkg prefix rover_navigation)/share/rover_navigation/map/empty_world.yaml
+```bash
+src/rover_orchestrator/scripts/sim/sim_nav_odom.sh     # odometry only, no map
+src/rover_orchestrator/scripts/sim/sim_nav_slam.sh     # slam_toolbox; autosaves ~/rover_sim_maps/slam/map.yaml
+src/rover_orchestrator/scripts/sim/sim_nav_amcl.sh     # AMCL on that map (or: sim_nav_amcl.sh <map.yaml>)
+src/rover_orchestrator/scripts/sim/sim_nav_indoor.sh   # rover_indoor_nav_manager, maps in ~/rover_sim_maps/indoor
 ```
+
+- Logs: one file per part under `~/.ros/rover_sim/<mode>-<time>/`; on failure the script prints
+  the tail of the part that died.
+- Every process runs as a Zenoh **client** of the local router (`tcp/localhost:7447`), whatever
+  `ZENOH_CONFIG_OVERRIDE` says, so the simulated `/rover` never joins the real rover's router.
+  Other terminals need the same:
+  `export ZENOH_CONFIG_OVERRIDE='mode="client";connect/endpoints=["tcp/localhost:7447"]'`.
+- Outside AUTOMATIC a Nav 2 goal plans but the rover does not move: Nav 2's commands reach the
+  platform only through `rover_drive_mode`, and only in AUTOMATIC, which needs
+  `rover_mission_manager` running.
+- Options (environment): `ROVER_SIM_RVIZ`, `ROVER_SIM_HEADLESS`, `ROVER_SIM_MAPS_DIR`,
+  `ROVER_SIM_LOG_DIR`, `ROVER_SIM_TIMEOUT` - see `scripts/sim/sim_nav_common.sh`.
 
 #### Real rover:
 
