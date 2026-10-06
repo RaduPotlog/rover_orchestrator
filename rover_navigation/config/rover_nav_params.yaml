@@ -236,7 +236,8 @@
           transform_tolerance: 0.2
           mapping_mode: false
           map_save_duration: 60.0
-          observation_sources: laserscan
+          # laserscan, plus depth_camera when ROVER_USE_CAMERA is true (see bringup.launch.py).
+          observation_sources: <observation_sources>
           # <ns>/scan, projected from the RS16 cloud by rover_rs16_lidar.
           laserscan:
             data_type: LaserScan
@@ -265,6 +266,31 @@
             # RS16 geometry: +/-15 deg vertical, 360 deg horizontal.
             vertical_fov_angle: 0.524
             horizontal_fov_angle: 6.2832
+            decay_acceleration: 15.0
+            model_type: 0
+          # RealSense D435i depth cloud from rover_perception (depth_image_proc). Only listed in
+          # observation_sources while ROVER_USE_CAMERA is true; the local costmap only, so the
+          # global map is not scribbled on by a narrow forward cone.
+          depth_camera:
+            data_type: PointCloud2
+            topic: <camera_depth_topic>
+            marking: true
+            clearing: true
+            obstacle_range: 3.0
+            min_obstacle_height: 0.0
+            max_obstacle_height: 1.5
+            expected_update_rate: 0.5
+            observation_persistence: 0.0
+            inf_is_valid: false
+            filter: "voxel"
+            voxel_min_points: 2
+            clear_after_reading: true
+            # Global-frame heights, like the laserscan source above.
+            max_z: 1.5
+            min_z: 0.05
+            # D435i depth FOV 87 x 58 deg.
+            vertical_fov_angle: 1.012
+            horizontal_fov_angle: 1.518
             decay_acceleration: 15.0
             model_type: 0
         inflation_layer:

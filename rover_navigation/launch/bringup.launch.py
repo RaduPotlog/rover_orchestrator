@@ -44,6 +44,17 @@ def generate_launch_description():
     maps_dir = LaunchConfiguration("maps_dir")
     namespace = LaunchConfiguration("namespace")
     observation_topic = LaunchConfiguration("observation_topic")
+    camera_depth_topic = LaunchConfiguration("camera_depth_topic")
+    # Local costmap sources: the lidar scan always, the D435i depth cloud only when the camera
+    # is switched on (ROVER_USE_CAMERA), so a rover without one sees no stale-source warnings.
+    use_camera = LaunchConfiguration("use_camera")
+    observation_sources = PythonExpression(
+        [
+            "'laserscan depth_camera' if '",
+            use_camera,
+            "'.strip().lower() in ('true', '1', 'yes', 'on') else 'laserscan'",
+        ]
+    )
     localization_source = LaunchConfiguration("localization_source")
     initial_pose_x = LaunchConfiguration("initial_pose_x")
     initial_pose_y = LaunchConfiguration("initial_pose_y")
@@ -94,6 +105,16 @@ def generate_launch_description():
             "LaserScan topic for the costmaps' stvl_layer, AMCL and slam_toolbox. "
             "rover_rs16_lidar publishes it as 'scan'."
         ),
+    )
+    declare_use_camera_arg = DeclareLaunchArgument(
+        "use_camera",
+        default_value=EnvironmentVariable("ROVER_USE_CAMERA", default_value="false"),
+        description="Add the RealSense depth cloud as a local-costmap observation source.",
+    )
+    declare_camera_depth_topic_arg = DeclareLaunchArgument(
+        "camera_depth_topic",
+        default_value="camera/depth/points",
+        description="PointCloud2 topic of the depth camera (rover_perception_bringup).",
     )
     declare_params_file_arg = DeclareLaunchArgument(
         "params_file",
@@ -226,6 +247,8 @@ def generate_launch_description():
                 "<max_y>": str(bounding_box["max_y"]),
                 "<global_frame>": global_frame,
                 "<observation_topic>": observation_topic,
+                "<observation_sources>": observation_sources,
+                "<camera_depth_topic>": camera_depth_topic,
             },
             condition=IfCondition(
                 PythonExpression(["'", robot_model, f"' == '{robot_model_name}'"])
@@ -346,6 +369,8 @@ def generate_launch_description():
             declare_maps_dir_arg,
             declare_namespace_arg,
             declare_observation_topic_arg,
+            declare_use_camera_arg,
+            declare_camera_depth_topic_arg,
             declare_params_file_arg,
             declare_localization_source_arg,
             declare_initial_pose_x_arg,
