@@ -30,8 +30,8 @@ import yaml
 PACKAGE_DIR = Path(__file__).resolve().parents[2]
 
 # Padded Nav 2 footprint (rover_navigation bringup.launch.py): wheel edges + 0.04 m.
-FOOTPRINT_HALF_LENGTH = 0.4566
-FOOTPRINT_HALF_WIDTH = 0.4015
+FOOTPRINT_HALF_LENGTH = 0.4614
+FOOTPRINT_HALF_WIDTH = 0.4008
 # What a turn in place sweeps: the footprint's corner radius.
 CORNER_RADIUS = (FOOTPRINT_HALF_LENGTH ** 2 + FOOTPRINT_HALF_WIDTH ** 2) ** 0.5
 

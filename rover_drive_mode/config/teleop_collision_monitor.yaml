@@ -3,9 +3,9 @@
 # (teleop_guard_out) only in ASSISTED.
 #
 # Geometry, in <namespace>/base_link (x forward, y left), all distances in metres:
-#   wheel edges        x +-0.4166, y +-0.3615   (rover_navigation bringup.launch.py)
-#   padded footprint   x +-0.4566, y +-0.4015   (the 0.913 x 0.803 Nav 2 footprint)
-#   corner radius      0.608                    (what a turn in place sweeps)
+#   wheel edges        x +-0.4214, y +-0.3608   (rover_navigation bringup.launch.py)
+#   padded footprint   x +-0.4614, y +-0.4008   (the 0.923 x 0.802 Nav 2 footprint)
+#   corner radius      0.611                    (what a turn in place sweeps)
 # The forward/reverse zones start at the footprint edge, so points on the rover itself never
 # trip them. The turn-in-place zone cannot exclude the body (polygons have no holes): any part
 # of the rover the lidar sees inside it would block turning in place. The current mount sees
@@ -55,13 +55,13 @@
           theta_min: -4.0
           theta_max: 4.0
         forward:
-          points: "[[0.80, 0.45], [0.80, -0.45], [0.46, -0.45], [0.46, 0.45]]"
+          points: "[[0.81, 0.45], [0.81, -0.45], [0.47, -0.45], [0.47, 0.45]]"
           linear_min: 0.05
           linear_max: 2.0
           theta_min: -4.0
           theta_max: 4.0
         reverse:
-          points: "[[-0.46, 0.45], [-0.46, -0.45], [-0.75, -0.45], [-0.75, 0.45]]"
+          points: "[[-0.47, 0.45], [-0.47, -0.45], [-0.76, -0.45], [-0.76, 0.45]]"
           linear_min: -2.0
           linear_max: -0.05
           theta_min: -4.0
@@ -84,13 +84,13 @@
           theta_min: -4.0
           theta_max: 4.0
         forward:
-          points: "[[1.50, 0.60], [1.50, -0.60], [0.46, -0.60], [0.46, 0.60]]"
+          points: "[[1.51, 0.60], [1.51, -0.60], [0.47, -0.60], [0.47, 0.60]]"
           linear_min: 0.05
           linear_max: 2.0
           theta_min: -4.0
           theta_max: 4.0
         reverse:
-          points: "[[-0.46, 0.60], [-0.46, -0.60], [-1.15, -0.60], [-1.15, 0.60]]"
+          points: "[[-0.47, 0.60], [-0.47, -0.60], [-1.16, -0.60], [-1.16, 0.60]]"
           linear_min: -2.0
           linear_max: -0.05
           theta_min: -4.0

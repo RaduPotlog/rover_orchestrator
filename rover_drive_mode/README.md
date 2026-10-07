@@ -101,7 +101,7 @@ shown as `NO_DATA` rather than as an obstacle.
 `lifecycle_manager_teleop_guard`. Two `velocity_polygon`s (`teleop_stop`, `teleop_slow`) whose
 zone is picked from the **commanded** velocity: turning in place, driving forward, driving
 backward. An obstacle ahead therefore does not block backing away. The forward and reverse zones
-start at the footprint edge; the turn-in-place zone covers the swept corner radius (0.608 m).
+start at the footprint edge; the turn-in-place zone covers the swept corner radius (0.611 m).
 
 - **Self-hits:** the turn-in-place zone cannot exclude the rover's own body (polygons have no
   holes), so any part of the rover the lidar sees inside it would block turning in place. The

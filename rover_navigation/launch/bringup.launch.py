@@ -222,10 +222,11 @@ def generate_launch_description():
     )
 
     bb_padding = 0.04
-    # Outer wheel edges, measured on the rover and matching rover_description's wheel_01.yaml:
-    # wheelbase / 2 + wheel_radius and wheel_separation / 2 + wheel_width / 2.
-    half_length = 0.503 / 2 + 0.1651  # 0.4166
-    half_width = 0.615 / 2 + 0.108 / 2  # 0.3615
+    # Outer tyre edges from the CAD, matching rover_description's wheel_01.yaml:
+    # wheelbase / 2 + tyre_radius and wheel_separation / 2 + wheel_width / 2 + tyre_y_offset
+    # (the tyre sits 1.71 mm inboard of the wheel joint).
+    half_length = 0.503 / 2 + 0.1699  # 0.4214
+    half_width = 0.617 / 2 + 0.108 / 2 - 0.00171  # 0.3608
     robot_bounding_box = {
         "rover_a1": {
             "min_x": round(-half_length - bb_padding, 4),

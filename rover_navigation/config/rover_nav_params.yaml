@@ -297,7 +297,7 @@
         inflation_layer:
           plugin: nav2_costmap_2d::InflationLayer
           cost_scaling_factor: 2.0
-          # Sized to the robot: footprint is 0.913 x 0.803 m, circumscribed radius 0.608 m.
+          # Sized to the robot: footprint is 0.923 x 0.802 m, circumscribed radius 0.611 m.
           inflation_radius: 0.9
 
 
@@ -381,7 +381,7 @@
         inflation_layer:
           plugin: nav2_costmap_2d::InflationLayer
           cost_scaling_factor: 1.5
-          # Sized to the robot: footprint is 0.913 x 0.803 m, circumscribed radius 0.608 m.
+          # Sized to the robot: footprint is 0.923 x 0.802 m, circumscribed radius 0.611 m.
           inflation_radius: 0.9
           inflate_around_unknown: false
           inflate_unknown: false
@@ -481,7 +481,7 @@
   # (nav_cmd_vel_stamped) only in AUTOMATIC. A last-resort guard on top of the costmaps, for
   # what they miss between updates. Same zone layout as rover_drive_mode's
   # teleop_collision_monitor.yaml (see the geometry there), but tighter: the planner already
-  # keeps its inflation distance, and a turn-in-place zone much wider than the 0.608 m corner
+  # keeps its inflation distance, and a turn-in-place zone much wider than the 0.611 m corner
   # radius would veto rotations MPPI and the rotation shim consider safe, stalling the mission.
   # Distances are TUNABLES; re-measure the stop distance on the rover.
   collision_monitor:
@@ -517,13 +517,13 @@
           theta_min: -4.0
           theta_max: 4.0
         forward:
-          points: "[[0.70, 0.43], [0.70, -0.43], [0.46, -0.43], [0.46, 0.43]]"
+          points: "[[0.71, 0.43], [0.71, -0.43], [0.47, -0.43], [0.47, 0.43]]"
           linear_min: 0.05
           linear_max: 2.0
           theta_min: -4.0
           theta_max: 4.0
         reverse:
-          points: "[[-0.46, 0.43], [-0.46, -0.43], [-0.70, -0.43], [-0.70, 0.43]]"
+          points: "[[-0.47, 0.43], [-0.47, -0.43], [-0.71, -0.43], [-0.71, 0.43]]"
           linear_min: -2.0
           linear_max: -0.05
           theta_min: -4.0
@@ -546,13 +546,13 @@
           theta_min: -4.0
           theta_max: 4.0
         forward:
-          points: "[[1.30, 0.55], [1.30, -0.55], [0.46, -0.55], [0.46, 0.55]]"
+          points: "[[1.31, 0.55], [1.31, -0.55], [0.47, -0.55], [0.47, 0.55]]"
           linear_min: 0.05
           linear_max: 2.0
           theta_min: -4.0
           theta_max: 4.0
         reverse:
-          points: "[[-0.46, 0.55], [-0.46, -0.55], [-1.00, -0.55], [-1.00, 0.55]]"
+          points: "[[-0.47, 0.55], [-0.47, -0.55], [-1.01, -0.55], [-1.01, 0.55]]"
           linear_min: -2.0
           linear_max: -0.05
           theta_min: -4.0
