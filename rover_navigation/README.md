@@ -179,7 +179,7 @@ teleop sources — and masks it whenever the `motion_lock` E-Stop is active.
 `following_server` (Nav 2's `opennav_following`) serves `follow_object`
 (`nav2_msgs/action/FollowObject`): it keeps `desired_distance` (1.2 m) from the pose on the goal's
 `pose_topic`, turning to face it, and rotates to search when it is lost.
-[`rover_follow_me`](https://github.com/RaduPotlog/rover_follow_me) sends the goals. It does no
+[`rover_follow_me`](../rover_follow_me/README.md) sends the goals. It does no
 collision checking itself, which is why it publishes into `cmd_vel_nav` like the controller: the
 smoother, the collision monitor, drive mode and the motion lock all apply. It shares
 `cmd_vel_nav` with `controller_server`, so it must not run during a mission;

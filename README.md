@@ -16,6 +16,8 @@ Mechatronics Academy's Rover A1 autonomy stack, running on the orchestrator comp
 - [`rover_drive_mode`](rover_drive_mode/README.md) - the driving modes (Manual, Assisted with
   lidar slow-down/stop, Automatic): routes the web UI's joystick and Nav 2's commands to the
   platform according to the mode.
+- [`rover_follow_me`](rover_follow_me/README.md) - follow-me: the person `rover_perception`
+  tracks, followed through Nav 2's Following server; `follow_me/start` / `follow_me/stop`.
 - [`rover_autonomy`](rover_autonomy/README.md) - metapackage grouping them.
 
 ## Quick start

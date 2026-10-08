@@ -565,7 +565,7 @@
         enabled: true
 
   # Nav 2 Following server (opennav_following): FollowObject keeps desired_distance from a pose
-  # topic. rover_follow_me's follow_me node sends the goals, fed by rover_fmoc's tracked person.
+  # topic. rover_follow_me's follow_me node sends the goals, fed by rover_perception's fmoc.
   # It does no collision checking of its own (use_collision_detection must stay false); its
   # cmd_vel is remapped to cmd_vel_nav (rover_nav.launch.py), so the velocity smoother, the
   # collision monitor above, drive mode (AUTOMATIC only) and the motion lock all guard it.
@@ -581,13 +581,13 @@
       odom_topic: odom
       controller_frequency: 20.0
       transform_tolerance: 0.2
-      # The standoff the follower keeps; rover_fmoc picks the person up at 1.5 m.
+      # The standoff the follower keeps; fmoc picks the person up at 1.5 m.
       desired_distance: 1.2
       linear_tolerance: 0.2
       angular_tolerance: 0.15
-      # rover_fmoc publishes positions only: always face the person from where the rover is.
+      # fmoc publishes positions only: always face the person from where the rover is.
       skip_orientation: true
-      # rover_fmoc publishes at ~5 Hz and keeps a briefly hidden person as COASTING.
+      # fmoc publishes at ~5 Hz and keeps a briefly hidden person as COASTING.
       detection_timeout: 1.0
       # Lost: turn up to +/-90 deg to look for the person, give up after 10 s.
       search_by_rotating: true

@@ -8,6 +8,7 @@ builds nothing itself; it exists so the whole stack can be built and installed w
 |---|---|
 | [`rover_navigation`](../rover_navigation/README.md) | Nav 2 configuration, the `IsMotionLocked` and `IsLidarHealthy` BT condition plugins and the SLAM map autosaver. |
 | [`rover_mission_manager`](../rover_mission_manager/README.md) | Behavior-tree-driven mission supervision, dispatching Nav 2 actions. |
+| [`rover_follow_me`](../rover_follow_me/README.md) | Follow-me: a person tracked by `rover_perception` followed through Nav 2's Following server, started and stopped by `follow_me/start` / `follow_me/stop`. |
 
 ```bash
 cd ~/ros2_ws/rover_a1

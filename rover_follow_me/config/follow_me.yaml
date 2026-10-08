@@ -1,0 +1,8 @@
+# rover_follow_me's follow_me node. The following itself (distance, speed, search) is the
+# Nav 2 Following server's: following_server in rover_navigation/config/rover_nav_params.yaml.
+# "/**/": the node runs in the rover namespace, which a bare node name would not match.
+/**/follow_me:
+  ros__parameters:
+    action_name: follow_object   # the Following server's action, in the same namespace
+    target_timeout: 1.0          # s; an older tracked_person counts as no person (start refused)
+    update_rate: 5.0             # Hz; checks drive mode / mission state, publishes the status

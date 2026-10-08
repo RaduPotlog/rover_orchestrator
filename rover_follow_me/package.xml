@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>rover_follow_me</name>
+  <version>0.3.0</version>
+  <description>
+    Follow-me for Rover A1 through Nav 2's Following server: the person rover_perception tracks
+    (tracked_person) becomes the pose of one FollowObject goal, started and stopped by
+    follow_me/start and follow_me/stop, refused outside AUTOMATIC and while a mission runs.
+  </description>
+  <maintainer email="potlogradu@gmail.com">radupotlog</maintainer>
+  <license>Apache License 2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
+
+  <exec_depend>action_msgs</exec_depend>
+  <exec_depend>builtin_interfaces</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>nav2_msgs</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <!-- TrackedPerson, drive_mode and mission_state (rover_ros). -->
+  <exec_depend>rover_msgs</exec_depend>
+  <!-- following_server (opennav_following) runs in its Nav 2 bringup. -->
+  <exec_depend>rover_navigation</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
+
+  <test_depend>ament_cmake_pytest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
