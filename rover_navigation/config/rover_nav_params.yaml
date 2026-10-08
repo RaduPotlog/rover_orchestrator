@@ -564,6 +564,47 @@
         topic: <observation_topic>
         enabled: true
 
+  # Nav 2 Following server (opennav_following): FollowObject keeps desired_distance from a pose
+  # topic. rover_follow_me's follow_me node sends the goals, fed by rover_fmoc's tracked person.
+  # It does no collision checking of its own (use_collision_detection must stay false); its
+  # cmd_vel is remapped to cmd_vel_nav (rover_nav.launch.py), so the velocity smoother, the
+  # collision monitor above, drive mode (AUTOMATIC only) and the motion lock all guard it.
+  following_server:
+    ros__parameters:
+      # Present so rover_nav.launch.py's RewrittenYaml sets it (it only rewrites existing keys);
+      # without it the server ran on wall time in Gazebo and every pose looked stale.
+      use_sim_time: false
+      enable_stamped_cmd_vel: true
+      base_frame: <namespace>/base_link
+      # A smooth odometry frame, not map (the server's own recommendation).
+      fixed_frame: <namespace>/odom
+      odom_topic: odom
+      controller_frequency: 20.0
+      transform_tolerance: 0.2
+      # The standoff the follower keeps; rover_fmoc picks the person up at 1.5 m.
+      desired_distance: 1.2
+      linear_tolerance: 0.2
+      angular_tolerance: 0.15
+      # rover_fmoc publishes positions only: always face the person from where the rover is.
+      skip_orientation: true
+      # rover_fmoc publishes at ~5 Hz and keeps a briefly hidden person as COASTING.
+      detection_timeout: 1.0
+      # Lost: turn up to +/-90 deg to look for the person, give up after 10 s.
+      search_by_rotating: true
+      search_angle: 1.57
+      rotate_to_object_timeout: 10.0
+      static_object_timeout: -1.0
+      # Retries are not reset within a goal: every short loss counts, so keep this high.
+      max_retries: 50
+      controller:
+        use_collision_detection: false
+        v_linear_min: 0.1
+        v_linear_max: 0.5
+        # >= 1.0 rad/s: this skid-steer stalls turning in place much slower (see behavior_server).
+        v_angular_max: 1.0
+        rotate_to_heading_angular_vel: 1.0
+        slowdown_radius: 0.5
+
   ### LOCALIZATION ###
 
   # Only used when bringup.launch.py is started with localization_source:=amcl. AMCL then

@@ -50,6 +50,7 @@ def generate_launch_description():
         "waypoint_follower",
         "velocity_smoother",
         "collision_monitor",
+        "following_server",
     ]
 
     # Create our own temporary YAML files that include substitutions
@@ -207,6 +208,19 @@ def generate_launch_description():
                 arguments=["--ros-args", "--log-level", log_level],
             ),
             Node(
+                package="opennav_following",
+                executable="opennav_following",
+                name="following_server",
+                output="screen",
+                respawn=use_respawn,
+                respawn_delay=2.0,
+                parameters=[configured_params],
+                arguments=["--ros-args", "--log-level", log_level],
+                # FollowObject (rover_follow_me). It does no collision checking itself: into
+                # cmd_vel_nav, so the velocity smoother and the collision monitor guard it too.
+                remappings=[("cmd_vel", "cmd_vel_nav")],
+            ),
+            Node(
                 package="nav2_lifecycle_manager",
                 executable="lifecycle_manager",
                 name="lifecycle_manager_navigation",
@@ -275,6 +289,14 @@ def generate_launch_description():
                 plugin="nav2_collision_monitor::CollisionMonitor",
                 name="collision_monitor",
                 parameters=[configured_params],
+            ),
+            ComposableNode(
+                package="opennav_following",
+                plugin="opennav_following::FollowingServer",
+                name="following_server",
+                parameters=[configured_params],
+                # No collision checking of its own: through the smoother and collision monitor.
+                remappings=[("cmd_vel", "cmd_vel_nav")],
             ),
             ComposableNode(
                 package="nav2_lifecycle_manager",

@@ -43,6 +43,8 @@
   <exec_depend>nav2_smoother</exec_depend>
   <exec_depend>nav2_velocity_smoother</exec_depend>
   <exec_depend>nav2_waypoint_follower</exec_depend>
+  <!-- following_server (rover_nav.launch.py): FollowObject for rover_follow_me. -->
+  <exec_depend>opennav_following</exec_depend>
   <!-- bringup.launch.py spawns component_container_isolated as nav2_container
        (use_composition defaults to True). -->
   <exec_depend>rclcpp_components</exec_depend>

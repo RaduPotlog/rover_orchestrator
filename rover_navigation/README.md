@@ -155,7 +155,7 @@ ros2 launch rover_navigation localization.launch.py \
 
 Lifecycle nodes managed by `lifecycle_manager_navigation`: `controller_server`,
 `smoother_server`, `planner_server`, `behavior_server`, `bt_navigator`,
-`waypoint_follower`, `velocity_smoother`, `collision_monitor`. `map_server` is managed separately by
+`waypoint_follower`, `velocity_smoother`, `collision_monitor`, `following_server`. `map_server` is managed separately by
 `lifecycle_manager_localization`.
 
 | Direction | Topic | Type |
@@ -168,13 +168,24 @@ Lifecycle nodes managed by `lifecycle_manager_navigation`: `controller_server`,
 | out | `collision_monitor_state` | `nav2_msgs/CollisionMonitorState` |
 | out | `local_costmap/costmap`, `global_costmap/costmap` | `nav_msgs/OccupancyGrid` |
 
-The chain is `controller_server`/`behavior_server` → `cmd_vel_nav` → `velocity_smoother` →
+The chain is `controller_server`/`behavior_server`/`following_server` → `cmd_vel_nav` → `velocity_smoother` →
 `cmd_vel_smoothed` → `collision_monitor` → `nav_cmd_vel_guarded` → `rover_drive_mode`, which
 publishes `nav_cmd_vel_stamped` only in AUTOMATIC. The collision monitor
 (`collision_monitor:` in `config/rover_nav_params.yaml`) is a last-resort guard on top of the
 costmaps: direction-dependent slow-down and stop zones around the footprint, chosen by the
 commanded velocity. `rover_twist_mux` gives `nav_cmd_vel_stamped` priority 5 — below both
 teleop sources — and masks it whenever the `motion_lock` E-Stop is active.
+
+`following_server` (Nav 2's `opennav_following`) serves `follow_object`
+(`nav2_msgs/action/FollowObject`): it keeps `desired_distance` (1.2 m) from the pose on the goal's
+`pose_topic`, turning to face it, and rotates to search when it is lost.
+[`rover_follow_me`](https://github.com/RaduPotlog/rover_follow_me) sends the goals. It does no
+collision checking itself, which is why it publishes into `cmd_vel_nav` like the controller: the
+smoother, the collision monitor, drive mode and the motion lock all apply. It shares
+`cmd_vel_nav` with `controller_server`, so it must not run during a mission;
+`rover_follow_me` refuses to start one then and stops following when a mission starts.
+It does not plan: it drives straight at the person, so an obstacle between them makes the
+collision monitor slow and stop the rover rather than route around it.
 
 The Nav 2 global frame depends on `localization_source` (see below); the robot frame is
 always `<namespace>/base_link`, and the local costmap always stays on `<namespace>/odom`
