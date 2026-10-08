@@ -45,8 +45,9 @@ def generate_launch_description():
     namespace = LaunchConfiguration("namespace")
     observation_topic = LaunchConfiguration("observation_topic")
     camera_depth_topic = LaunchConfiguration("camera_depth_topic")
-    # Local costmap sources: the lidar scan always, the D435i depth cloud only when the camera
-    # is switched on (ROVER_USE_CAMERA), so a rover without one sees no stale-source warnings.
+    # Local costmap sources: the lidar scan always, the D435i depth cloud only when asked for
+    # (use_camera, ROVER_NAV_USE_CAMERA). Not ROVER_USE_CAMERA: that only starts the camera
+    # (rover-a1-sensors), which follow-me and perception use without Nav 2 relying on it.
     use_camera = LaunchConfiguration("use_camera")
     observation_sources = PythonExpression(
         [
@@ -108,8 +109,11 @@ def generate_launch_description():
     )
     declare_use_camera_arg = DeclareLaunchArgument(
         "use_camera",
-        default_value=EnvironmentVariable("ROVER_USE_CAMERA", default_value="false"),
-        description="Add the RealSense depth cloud as a local-costmap observation source.",
+        default_value=EnvironmentVariable("ROVER_NAV_USE_CAMERA", default_value="false"),
+        description=(
+            "Add the RealSense depth cloud as a local-costmap observation source "
+            "(ROVER_NAV_USE_CAMERA). The camera itself is ROVER_USE_CAMERA, in rover-a1-sensors."
+        ),
     )
     declare_camera_depth_topic_arg = DeclareLaunchArgument(
         "camera_depth_topic",

@@ -124,6 +124,8 @@ Arguments of `bringup.launch.py` (`ros2 launch rover_navigation bringup.launch.p
 | `map` | `empty_world.yaml` | Map yaml file to load. Pass an absolute path. |
 | `namespace` | `$ROVER_NAMESPACE`, else `$ROBOT_NAMESPACE`, else empty | Namespace applied to all launched nodes. |
 | `observation_topic` | `scan` | `LaserScan` topic for the costmaps' `stvl_layer`, AMCL and slam_toolbox; `rover_rs16_lidar` publishes it. |
+| `use_camera` | `$ROVER_NAV_USE_CAMERA`, else `false` | Add the RealSense depth cloud (`camera_depth_topic`) as a second source of the **local** costmap. Separate from `ROVER_USE_CAMERA`, which only starts the camera: turn this on once the camera mount (`ROVER_CAMERA_*`) is measured. |
+| `camera_depth_topic` | `camera/depth/points` | `PointCloud2` of the depth camera (`rover_perception_bringup`). Only used with `use_camera`. |
 | `params_file` | `<share>/rover_navigation/config/rover_nav_params.yaml` | Parameter file for all Nav 2 nodes. |
 | `robot_model` | `$ROBOT_MODEL_NAME`, else `rover_a1` | Robot model; selects the footprint bounding box. |
 | `localization_source` | `odom` | Where the Nav 2 global frame comes from: `odom`, `gps`, `slam`, `amcl` or `indoor`. Replaces the old `slam` boolean. See below. |

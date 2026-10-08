@@ -237,7 +237,7 @@
           transform_tolerance: 0.2
           mapping_mode: false
           map_save_duration: 60.0
-          # laserscan, plus depth_camera when ROVER_USE_CAMERA is true (see bringup.launch.py).
+          # laserscan, plus depth_camera with use_camera / ROVER_NAV_USE_CAMERA (bringup.launch.py).
           observation_sources: <observation_sources>
           # <ns>/scan, projected from the RS16 cloud by rover_rs16_lidar.
           laserscan:
@@ -270,7 +270,7 @@
             decay_acceleration: 15.0
             model_type: 0
           # RealSense D435i depth cloud from rover_perception (depth_image_proc). Only listed in
-          # observation_sources while ROVER_USE_CAMERA is true; the local costmap only, so the
+          # observation_sources with ROVER_NAV_USE_CAMERA=true; the local costmap only, so the
           # global map is not scribbled on by a narrow forward cone.
           depth_camera:
             data_type: PointCloud2
