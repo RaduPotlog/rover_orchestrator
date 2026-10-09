@@ -181,9 +181,11 @@ always `<namespace>/base_link`, and the local costmap always stays on `<namespac
 because it is a rolling window. Plugins in use:
 
 - Controller: `nav2_rotation_shim_controller::RotationShimController` wrapping
-  `nav2_mppi_controller::MPPIController` (`DiffDrive` motion model, `vx_max 0.8`, `wz_max 1.0`,
-  10 Hz). MPPI drives; the shim only takes over the final in-place turn to the goal heading, at
-  a fixed 1.0 rad/s, because the skid-steer stalls at the low yaw rates MPPI settles on there.
+  `nav2_mppi_controller::MPPIController` (`DiffDrive` motion model, `vx_max 0.8`, `wz_max 1.5`,
+  10 Hz). The shim turns the rover in place to face the path once at the start
+  (`rotate_to_heading_once`) and for the final turn to the goal heading, at 1.0 rad/s with
+  `max_angular_accel` 1.3; MPPI drives in between. See
+  [Rotation Shim: after-turn measurements](#rotation-shim-after-turn-measurements-2026-10-09-ground).
   MPPI's parameters live under `FollowPath.primary_controller` (Nav 2 Kilted+ layout).
 - Progress checker: `nav2_controller::PoseProgressChecker`, so turning in place counts as
   progress (0.5 m or 0.5 rad within 10 s).
@@ -365,7 +367,7 @@ and wait for it to settle before any test), `AUTOMATIC` drive mode, rover on its
   limit) gave the least first-turn overshoot; at 2.0 the final in-place turn overshot by 17°.
 - One of five final turns with `once: true` + 1.3 (run 6) went the long way round. Cause not
   established (no shim source on the build machine); not seen in runs 7-10. Treat the pair as a
-  candidate, not shipped: `rotate_to_heading_once` and `max_angular_accel` above are unchanged.
+  candidate at first; shipped 2026-10-10 together with the 1.0 rad/s rate below.
 - The right-hand goal (run 9) did not pre-rotate (-16° first turn, curved drive, +101° final turn).
   Not investigated; may be the local map geometry.
 - Reaching a position the odometry says is 0.25-0.3 m short is within `xy_goal_tolerance` (0.25 m).
@@ -374,7 +376,9 @@ and wait for it to settle before any test), `AUTOMATIC` drive mode, rover on its
   (the right goals now pre-rotate too: -100° / -86°), straight drives 0-11 cm off line, all final turns in
   the correct direction, net heading error 3-7°. About as accurate as 1.5 rad/s and 1-2 s slower. The
   rover now turns closed loop down to 0.3 rad/s (`rover_controller` notes, phase 4), so the comment above
-  `rotate_to_heading_angular_vel` (stall below ~1.0 rad/s, measured 2026-09-26) is out of date. Not shipped.
+  `rotate_to_heading_angular_vel` (stall below ~1.0 rad/s, measured 2026-09-26) was out of date.
+  **Shipped 2026-10-10:** `rotate_to_heading_once: true`, `max_angular_accel: 1.3`,
+  `rotate_to_heading_angular_vel: 1.0` in `config/rover_nav_params.yaml`.
 
 ## Known Limitations and Troubleshooting
 

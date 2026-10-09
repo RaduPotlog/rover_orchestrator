@@ -206,10 +206,10 @@ $(pgrep -af "$running_re")"
 
   # Simulation copy of the Nav 2 parameters:
   # - The SLAM map autosaver writes to /maps/map on the rover; point it at $MAPS_DIR.
-  # - The rotation shim turns at 1.5 rad/s on the rover to break the skid-steer's static
-  #   friction. The simulated wheels have none, and the shim does not brake before handing over
-  #   to MPPI, so at 1.5 MPPI inherits a spin it cannot absorb: it overshoots by up to 60 deg and
-  #   turns back and forth in place before driving off. 0.7 removes that.
+  # - The rotation shim turns at 1.0 rad/s on the rover (skid-steer static friction). The
+  #   simulated wheels have none, and the shim does not brake before handing over to MPPI; at 1.5
+  #   MPPI inherited a spin it could not absorb (overshoot up to 60 deg, back and forth in place).
+  #   0.7 removes that.
   local params="$LOG_DIR/rover_nav_params.yaml"
   sed -e "s|^\(\s*map_directory:\).*|\1 $MAPS_DIR/slam/map|" \
     -e "s|^\(\s*rotate_to_heading_angular_vel:\).*|\1 $SHIM_TURN_RATE|" \
