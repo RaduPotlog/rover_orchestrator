@@ -342,6 +342,34 @@ the mission manager).
 The goal `frame_id` must match the mode: **`rover/odom`** with `localization_source:=odom`
 (as above), **`rover/map`** with `gps`, `slam` or `amcl`.
 
+## Rotation Shim: after-turn measurements (2026-10-09, ground)
+
+Goal: 1.2 m straight to the left (a 90° turn first) from a converged AMCL pose (variance
+<= 0.17 m^2; right after a restart it is ~1 m^2 and the run wanders, so spin the rover in place
+and wait for it to settle before any test), `AUTOMATIC` drive mode, rover on its test surface.
+`FollowPath` parameters set live with `ros2 param set` on `controller_server` (not saved).
+
+| Run | Shim settings | Time | First turn | Mid-path stop | Final turn |
+|-----|---------------|------|------------|---------------|-----------|
+| 4   | shipped (`rotate_to_heading_once: false`, `max_angular_accel: 2.0`) | 9.5 s | 107° (path was ~90°) | yes, -55° | ok |
+| 5   | `rotate_to_heading_once: true` | 15.1 s | 97° | none | overshot 17°, drifted, re-approach |
+| 6   | `once: true`, `max_angular_accel: 1.3` | 11.4 s | 82° | none | **wrong way: +270° instead of -87°** |
+| 7   | same as 6 | 6.9 s | 94° | none | ok |
+| 8-10| same as 6, left / right / left | 7.2 / 8.8 / 7.2 s | +89° / -16° / +88° | none | -82° / +101° / -18°, all correct |
+
+- The planner path was straight (+86..+96° to the heading, 1.23 m), so the S-shaped motion in run 4
+  came from the controller. With `once: false` the first-turn overshoot put the rover 0.36 m off
+  the line; the sampled point 0.5 m ahead was then ~64° off its heading (> `angular_dist_threshold`
+  45°), and the shim stopped and turned back.
+- `rotate_to_heading_once: true` removes that stop. `max_angular_accel: 1.3` (the stack's real
+  limit) gave the least first-turn overshoot; at 2.0 the final in-place turn overshot by 17°.
+- One of five final turns with `once: true` + 1.3 (run 6) went the long way round. Cause not
+  established (no shim source on the build machine); not seen in runs 7-10. Treat the pair as a
+  candidate, not shipped: `rotate_to_heading_once` and `max_angular_accel` above are unchanged.
+- The right-hand goal (run 9) did not pre-rotate (-16° first turn, curved drive, +101° final turn).
+  Not investigated; may be the local map geometry.
+- Reaching a position the odometry says is 0.25-0.3 m short is within `xy_goal_tolerance` (0.25 m).
+
 ## Known Limitations and Troubleshooting
 
 - **Never publish a static `map -> odom`.** Earlier revisions of this README suggested
