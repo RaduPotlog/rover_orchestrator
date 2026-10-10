@@ -616,7 +616,7 @@
 
   # Only used when bringup.launch.py is started with localization_source:=amcl. AMCL then
   # owns <namespace>/map -> <namespace>/odom, so ROVER_SYSTEM_USE_GPS must be off (or
-  # ROVER_PLATFORM_GPS_MAP_TF=false) and slam_toolbox must not run: all three publish that
+  # ROVER_SYSTEM_GPS_MAP_TF=false) and slam_toolbox must not run: all three publish that
   # same transform, and two owners fight rather than error.
   amcl:
     ros__parameters:

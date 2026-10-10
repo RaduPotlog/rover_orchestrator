@@ -197,7 +197,7 @@ $(pgrep -af "$running_re")"
   export ZENOH_CONFIG_OVERRIDE="$SIM_ZENOH_CONFIG"
   export ROVER_SYSTEM_NAMESPACE="$NS"
   # Only 'gps' mode wants the global EKF; every mode here owns map -> odom itself.
-  export ROVER_SYSTEM_USE_GPS=false ROVER_PLATFORM_GPS_MAP_TF=false
+  export ROVER_SYSTEM_USE_GPS=false ROVER_SYSTEM_GPS_MAP_TF=false
   # A ros2 daemon started from a shell with a different Zenoh config answers stale graphs.
   ros2 daemon stop > /dev/null 2>&1
 

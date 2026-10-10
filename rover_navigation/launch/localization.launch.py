@@ -166,7 +166,7 @@ def generate_launch_description():
 
         # AMCL runs only with localization_source:=amcl, and is then the sole owner of
         # <namespace>/map -> <namespace>/odom. rover_ekf_global_node (rover_localization)
-        # publishes that same transform when ROVER_PLATFORM_GPS_MAP_TF=true, and
+        # publishes that same transform when ROVER_SYSTEM_GPS_MAP_TF=true, and
         # slam_toolbox when localization_source:=slam. Exactly one of the three may run --
         # two owners do not error, they fight, and the pose visibly jitters between them.
         plain_nodes = [

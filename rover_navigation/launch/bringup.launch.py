@@ -154,7 +154,7 @@ def generate_launch_description():
             "\t  which matches the lidar scan against the static map from map_server.\n"
             "\t  Indoor mode. Needs a real map (map:=, NOT the default empty_world.yaml -\n"
             "\t  every particle scores identically on an empty map and AMCL never\n"
-            "\t  converges), ROVER_SYSTEM_USE_LIDAR=true, and ROVER_PLATFORM_GPS_MAP_TF=false.\n"
+            "\t  converges), ROVER_SYSTEM_USE_LIDAR=true, and ROVER_SYSTEM_GPS_MAP_TF=false.\n"
             "\t- 'indoor': the global frame is <namespace>/map, and rover_indoor_nav_manager\n"
             "\t  owns localization at runtime: it runs slam_toolbox while a map is being\n"
             "\t  built and map_server + AMCL on a saved map (from /maps), and switches\n"

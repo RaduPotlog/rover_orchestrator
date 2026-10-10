@@ -224,7 +224,7 @@ exclusive. This argument replaces the old `slam` boolean.
 | `odom` (default) | `<namespace>/odom` | nobody | No GPS, no SLAM. Navigation is odometry-relative and **drifts**; the global costmap's static layer will not line up with the map. |
 | `gps` | `<namespace>/map` | `rover_ekf_global_node` (`rover_localization`) | `ROVER_SYSTEM_USE_GPS` is set on the rover. Outdoors only — see the warning below. |
 | `slam` | `<namespace>/map` | `slam_toolbox` | Mapping a new area. Requires `ROVER_SYSTEM_USE_GPS` **off**. |
-| `amcl` | `<namespace>/map` | `nav2_amcl` | **Indoors.** Matches the lidar scan against a static map. Needs a real map (build one in `slam` mode first), `ROVER_SYSTEM_USE_LIDAR=true`, and `ROVER_PLATFORM_GPS_MAP_TF=false`. |
+| `amcl` | `<namespace>/map` | `nav2_amcl` | **Indoors.** Matches the lidar scan against a static map. Needs a real map (build one in `slam` mode first), `ROVER_SYSTEM_USE_LIDAR=true`, and `ROVER_SYSTEM_GPS_MAP_TF=false`. |
 | `indoor` | `<namespace>/map` | `slam_toolbox` while mapping, `nav2_amcl` on a saved map | **Indoors, driven from the web UI.** [`rover_indoor_nav_manager`](../rover_indoor_nav_manager/README.md) switches between the two at runtime and keeps maps, places and the last pose in `/maps`. `map` and `initial_pose_*` are ignored. Same requirements as `amcl`. |
 
 > **Do not use `gps` mode indoors.** It does not fail loudly, it fails silently.
