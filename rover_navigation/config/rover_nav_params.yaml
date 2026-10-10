@@ -57,14 +57,17 @@
         xy_goal_tolerance: 0.25
         yaw_goal_tolerance: 0.15
 
-      # RotationShim around MPPI. The shim only takes over for the final turn to the goal
-      # heading (rotate_to_goal_heading); MPPI drives everything else as before.
+      # RotationShim around MPPI. The shim turns the rover in place to face the path once at the
+      # start (rotate_to_heading_once) and for the final turn to the goal heading
+      # (rotate_to_goal_heading); MPPI drives everything in between.
       #
-      # Why: this skid-steer does not break static friction when turning in place at the low
-      # yaw rates MPPI settles on near the goal. Measured on the rover 2026-09-26: at a
-      # commanded wz of 0.40 rad/s the wheels stalled (joint velocity ~0, IMU yaw rate ~0) for
-      # 40 s until the mission failed; at 1.0 rad/s the wheels spun +/-1.6 rad/s and the rover
-      # turned at ~0.52 rad/s.
+      # Ground tests 2026-10-09/10 (rover_navigation/README.md, "Rotation Shim: after-turn
+      # measurements"; motor_acceleration 2.0): with rotate_to_heading_once false, the first turn
+      # overshot ~20-30 deg, the rover drove off the line and the shim stopped mid-path to turn back.
+      # With once true, max_angular_accel 1.3 and 1.0 rad/s, four 90-degree goals took 8-10 s, turned
+      # within +-10 deg, drove 0-11 cm off line and finished every final turn in the right direction.
+      # One earlier run (once true, accel 1.3, 1.5 rad/s) made its final turn the long way round
+      # (+270 instead of -87 deg); not seen in the 8 runs since. Watch for it.
       #
       # Nav 2 Kilted+ layout: the primary controller's parameters live under
       # FollowPath.primary_controller, not next to the shim's own.
@@ -72,24 +75,28 @@
       FollowPath:
         plugin: nav2_rotation_shim_controller::RotationShimController
         rotate_to_goal_heading: true
-        # Do not lower it below the breakaway rate (see above). 1.0 turned the rover but
-        # under-drove the wheels (1.6 of ~3.1 rad/s reference): the wheel PIDs are
-        # feedforward-dominated with a clamped I term, so only a higher reference raises the
-        # motor duty. wz_max, the velocity_smoother, Spin and diff_drive all allow 1.5.
-        # scripts/sim/sim_nav_common.sh lowers this to 0.7 in simulation (no stiction there).
-        rotate_to_heading_angular_vel: 1.5
-        max_angular_accel: 2.0
+        # 1.0 rad/s. The skid-steer used to stall below ~1.0 rad/s (2026-09-26: 0.40 rad/s held the
+        # wheels at ~0 for 40 s), which is why this was 1.5. With the current wheel PIDs it turns
+        # closed loop down to 0.3 rad/s (rover_controller tuning notes, 2026-10-09), and 1.0 gives
+        # less overshoot than 1.5 for 1-2 s more per goal. wz_max, the velocity_smoother, Spin and
+        # diff_drive all allow 1.5. scripts/sim/sim_nav_common.sh lowers this to 0.7 in simulation.
+        rotate_to_heading_angular_vel: 1.0
+        # The stack's real angular limit (rover_drive_controller, velocity_smoother az, MPPI az_max).
+        # The shim plans its deceleration with this; 2.0 made it brake too late and overshoot.
+        max_angular_accel: 1.3
         # Must stay false. Closed loop limits each command to the *measured* yaw rate plus
         # max_angular_accel * dt, and a stalled rover measures 0, so the command would stay
         # at ~0.2 rad/s and never break it free.
         closed_loop: false
-        # MPPI cannot reverse (vx_min 0.0), so the shim turns the rover to face the path at
-        # rotate_to_heading_angular_vel before MPPI drives. Otherwise MPPI would turn in place at
-        # the low yaw rates that stall this skid-steer.
+        # MPPI cannot reverse (vx_min 0.0), so the shim turns the rover to face the path before
+        # MPPI drives. Otherwise MPPI would turn in place at low yaw rates on its own.
         angular_dist_threshold: 0.785
         forward_sampling_distance: 0.5
         simulate_ahead_time: 1.0
-        rotate_to_heading_once: false
+        # true: turn to the path once, then never stop mid-path to turn again. With false the
+        # first-turn overshoot pulled the rover off the line, the heading error to the point 0.5 m
+        # ahead exceeded angular_dist_threshold, and the shim stopped and turned back.
+        rotate_to_heading_once: true
         use_path_orientations: false
 
         # MPPI controller
