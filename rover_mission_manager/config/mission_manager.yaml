@@ -31,7 +31,7 @@
 
       # rover_battery publishes here; the old default `battery` matched nothing, so the
       # abort threshold never fired.
-      battery_topic: rover_battery/battery_status
+      battery_topic: battery/battery_status
       abort_battery_fraction: 0.10
 
       # rover_rs16_lidar's only health signal is this diagnostic_updater task -- it exposes no

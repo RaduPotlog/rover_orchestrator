@@ -69,7 +69,7 @@ decides whether waypoints are interpreted in `<namespace>/odom` (`odom`) or
 |---|---|---|
 | in | `drive_mode` | `rover_msgs/DriveMode`, latched — from `rover_drive_mode`; missions run only in AUTOMATIC |
 | in | `motion_lock` | `std_msgs/Bool` — from `rover_motion_lock_node` |
-| in | `rover_battery/battery_status` | `sensor_msgs/BatteryState` (`battery_topic`) |
+| in | `battery/battery_status` | `sensor_msgs/BatteryState` (`battery_topic`) |
 | in | `diagnostics` | `diagnostic_msgs/DiagnosticArray` — `rover_rs16_lidar`'s health task |
 | out | `mission_status` | `std_msgs/String`, latched — one line, for logs |
 | out | `mission_state` | `rover_msgs/MissionState`, latched — for UIs (rover_drive_interface) |
