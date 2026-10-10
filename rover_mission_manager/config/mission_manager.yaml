@@ -39,7 +39,7 @@
       # hold, not an abort: the costmaps stop being trustworthy, but the mission resumes on
       # the same waypoint once it comes back.
       #
-      # require_lidar stays false so a rover booted with ROVER_USE_LIDAR=false still runs
+      # require_lidar stays false so a rover booted with ROVER_SYSTEM_USE_LIDAR=false still runs
       # missions. Set it true on a rover that always carries a lidar.
       lidar_health_topic: diagnostics
       lidar_status_name: "rover_rs16_lidar_node: Lidar status"

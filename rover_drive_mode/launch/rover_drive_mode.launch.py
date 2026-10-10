@@ -44,7 +44,7 @@ def generate_launch_description():
     declare_namespace_arg = DeclareLaunchArgument(
         "namespace",
         default_value=EnvironmentVariable(
-            "ROVER_NAMESPACE",
+            "ROVER_SYSTEM_NAMESPACE",
             default_value=EnvironmentVariable("ROBOT_NAMESPACE", default_value=""),
         ),
         description="Add namespace to all launched nodes.",
@@ -53,7 +53,8 @@ def generate_launch_description():
     default_mode = LaunchConfiguration("default_mode")
     declare_default_mode_arg = DeclareLaunchArgument(
         "default_mode",
-        default_value=EnvironmentVariable("ROVER_DRIVE_DEFAULT_MODE", default_value="assisted"),
+        default_value=EnvironmentVariable(
+            "ROVER_ORCH_DRIVE_DEFAULT_MODE", default_value="assisted"),
         description="Driving mode at startup.",
         choices=["manual", "assisted"],
     )

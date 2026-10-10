@@ -51,7 +51,7 @@ TransitionDecision DriveModePolicy::decide(
                 return {
                     false,
                     "Automatic driving needs the mission manager (set_mission), which is not "
-                    "running. Is ROVER_START_MISSION_MANAGER=true?"};
+                    "running. Is ROVER_ORCH_MISSION_MANAGER=true?"};
             }
             return {true, "Automatic driving: GoTo goals are accepted."};
     }

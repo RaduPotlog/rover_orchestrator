@@ -18,7 +18,7 @@
            the status goes stale) this returns FAILURE and the tree aborts. Note the polarity
            is the opposite of IsMotionLocked: SUCCESS means healthy, so there is no Inverter.
            It returns SUCCESS when the status has never been seen at all, which is what keeps
-           ROVER_USE_LIDAR=false operation working; set require_present="true" on a rover
+           ROVER_SYSTEM_USE_LIDAR=false operation working; set require_present="true" on a rover
            that always carries a lidar. -->
       <IsLidarHealthy topic="diagnostics" status_name="rover_rs16_lidar_node: Lidar status" timeout="3.0" require_present="false" />
       <RecoveryNode number_of_retries="6" name="NavigateRecovery">

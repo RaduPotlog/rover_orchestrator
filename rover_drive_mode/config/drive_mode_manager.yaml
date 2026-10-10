@@ -1,7 +1,7 @@
 /**/drive_mode_manager:
   ros__parameters:
     # Mode at startup: assisted (lidar guard on) or manual. Overridden by the launch file's
-    # default_mode argument (ROVER_DRIVE_DEFAULT_MODE).
+    # default_mode argument (ROVER_ORCH_DRIVE_DEFAULT_MODE).
     default_mode: assisted
 
     # False when rover_drive_mode.launch.py runs without the teleop collision monitor.

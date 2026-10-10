@@ -5,7 +5,7 @@ side of the Clearpath IndoorNav-style **Facility** and **Places** features in
 [rover_drive_interface](https://github.com/RaduPotlog/rover_drive_interface).
 
 `rover_navigation`'s `bringup.launch.py` starts it with `localization_source:=indoor`
-(`ROVER_LOCALIZATION_SOURCE=indoor` on the orchestrator):
+(`ROVER_ORCH_LOCALIZATION_SOURCE=indoor` on the orchestrator):
 - Nav 2 runs with `global_frame=<ns>/map`.
 - This node owns whatever publishes `map → odom`, running
   `rover_navigation/indoor_localization.launch.py` as a child process group:

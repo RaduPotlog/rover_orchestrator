@@ -30,7 +30,7 @@ providing:
 | TF `<namespace>/odom -> <namespace>/base_link` | `rover_localization` (EKF) |
 | TF `<namespace>/base_link -> <namespace>/lidar_link` | `rover_description` (URDF / robot_state_publisher) |
 | `odom` (`nav_msgs/Odometry`) | `rover_localization`, remapped from `odometry/filtered` |
-| `<namespace>/scan` (`sensor_msgs/LaserScan`) | `rover_rs16_lidar` on hardware (sensor payload, `rover-a1-sensors`, `ROVER_USE_LIDAR=true`), or the Gazebo bridge in simulation |
+| `<namespace>/scan` (`sensor_msgs/LaserScan`) | `rover_rs16_lidar` on hardware (sensor payload, `rover-a1-sensors`, `ROVER_SYSTEM_USE_LIDAR=true`), or the Gazebo bridge in simulation |
 | `<namespace>/diagnostics` (`diagnostic_msgs/DiagnosticArray`) | `rover_rs16_lidar` — watched by the `IsLidarHealthy` BT condition |
 
 Both costmaps mark and clear from the lidar, so without it the local costmap stays empty and
@@ -41,7 +41,7 @@ package deliberately does not run a second one.
 
 When navigation runs on a different machine than the rover, both must share the same
 `ROS_DOMAIN_ID`, `RMW_IMPLEMENTATION` (`rmw_zenoh_cpp`, see `rover_docker`'s README) and
-`ROVER_NAMESPACE` (`rover`).
+`ROVER_SYSTEM_NAMESPACE` (`rover`).
 
 ## Config Files
 
@@ -78,7 +78,7 @@ When navigation runs on a different machine than the rover, both must share the 
 
 ```bash
 # terminal 1 - simulator, URDF, RViz, ros2_control, EKF, twist_mux and the simulated
-# RS16 lidar (scan, rslidar_points) + GNSS (gps/fix); ROVER_USE_GPS=true fuses the GNSS
+# RS16 lidar (scan, rslidar_points) + GNSS (gps/fix); ROVER_SYSTEM_USE_GPS=true fuses the GNSS
 ros2 launch rover_gazebo simulation.launch.py
 
 # terminal 2 - navigation
@@ -106,9 +106,9 @@ ros2 launch rover_navigation bringup.launch.py \
 ros2 launch rover_navigation bringup.launch.py namespace:=rover ...
 ```
 
-`namespace` defaults to the `ROVER_NAMESPACE` environment variable (falling back to the
+`namespace` defaults to the `ROVER_SYSTEM_NAMESPACE` environment variable (falling back to the
 legacy `ROBOT_NAMESPACE`), the same variable the rover stack reads. The rover runs under
-`rover` (`rover_docker/docker-compose.yml`), so export `ROVER_NAMESPACE=rover` on this
+`rover` (`rover_docker/docker-compose.yml`), so export `ROVER_SYSTEM_NAMESPACE=rover` on this
 computer too: otherwise Nav 2 publishes `/nav_cmd_vel_stamped` while the rover's mux listens on
 `/rover/nav_cmd_vel_stamped`, and looks up `odom`/`base_link` instead of `rover/odom`/`rover/base_link`.
 
@@ -122,14 +122,14 @@ Arguments of `bringup.launch.py` (`ros2 launch rover_navigation bringup.launch.p
 | `autostart` | `True` | Automatically start up the Nav 2 stack. |
 | `log_level` | `info` | Logging level: `debug`, `info`, `warning`, `error`. |
 | `map` | `empty_world.yaml` | Map yaml file to load. Pass an absolute path. |
-| `namespace` | `$ROVER_NAMESPACE`, else `$ROBOT_NAMESPACE`, else empty | Namespace applied to all launched nodes. |
+| `namespace` | `$ROVER_SYSTEM_NAMESPACE`, else `$ROBOT_NAMESPACE`, else empty | Namespace applied to all launched nodes. |
 | `observation_topic` | `scan` | `LaserScan` topic for the costmaps' `stvl_layer`, AMCL and slam_toolbox; `rover_rs16_lidar` publishes it. |
-| `use_camera` | `$ROVER_NAV_USE_CAMERA`, else `false` | Add the RealSense depth cloud (`camera_depth_topic`) as a second source of the **local** costmap. Separate from `ROVER_USE_CAMERA`, which only starts the camera: turn this on once the camera mount (`ROVER_CAMERA_*`) is measured. |
+| `use_camera` | `$ROVER_ORCH_NAV_USE_CAMERA`, else `false` | Add the RealSense depth cloud (`camera_depth_topic`) as a second source of the **local** costmap. Separate from `ROVER_SYSTEM_USE_CAMERA`, which only starts the camera: turn this on once the camera mount (`ROVER_SYSTEM_MOUNT_CAMERA_*`) is measured. |
 | `camera_depth_topic` | `camera/depth/points` | `PointCloud2` of the depth camera (`rover_perception_bringup`). Only used with `use_camera`. |
 | `params_file` | `<share>/rover_navigation/config/rover_nav_params.yaml` | Parameter file for all Nav 2 nodes. |
 | `robot_model` | `$ROBOT_MODEL_NAME`, else `rover_a1` | Robot model; selects the footprint bounding box. |
 | `localization_source` | `odom` | Where the Nav 2 global frame comes from: `odom`, `gps`, `slam`, `amcl` or `indoor`. Replaces the old `slam` boolean. See below. |
-| `initial_pose_x` / `_y` / `_yaw` | `$ROVER_AMCL_INITIAL_POSE_{X,Y,YAW}`, else `0.0` | Pose AMCL is seeded with at startup, in `<namespace>/map`. Only used with `localization_source:=amcl`. |
+| `initial_pose_x` / `_y` / `_yaw` | `$ROVER_ORCH_AMCL_INITIAL_POSE_{X,Y,YAW}`, else `0.0` | Pose AMCL is seeded with at startup, in `<namespace>/map`. Only used with `localization_source:=amcl`. |
 | `use_composition` | `True` | Load all servers into one component container. |
 | `use_respawn` | `False` | Respawn a crashed node. Only when composition is disabled. |
 | `use_sim_time` | `False` | Use the Gazebo clock. |
@@ -222,9 +222,9 @@ exclusive. This argument replaces the old `slam` boolean.
 | Mode | Nav 2 global frame | `map -> odom` published by | Use when |
 |---|---|---|---|
 | `odom` (default) | `<namespace>/odom` | nobody | No GPS, no SLAM. Navigation is odometry-relative and **drifts**; the global costmap's static layer will not line up with the map. |
-| `gps` | `<namespace>/map` | `rover_ekf_global_node` (`rover_localization`) | `ROVER_USE_GPS` is set on the rover. Outdoors only — see the warning below. |
-| `slam` | `<namespace>/map` | `slam_toolbox` | Mapping a new area. Requires `ROVER_USE_GPS` **off**. |
-| `amcl` | `<namespace>/map` | `nav2_amcl` | **Indoors.** Matches the lidar scan against a static map. Needs a real map (build one in `slam` mode first), `ROVER_USE_LIDAR=true`, and `ROVER_GPS_PUBLISH_MAP_TF=false`. |
+| `gps` | `<namespace>/map` | `rover_ekf_global_node` (`rover_localization`) | `ROVER_SYSTEM_USE_GPS` is set on the rover. Outdoors only — see the warning below. |
+| `slam` | `<namespace>/map` | `slam_toolbox` | Mapping a new area. Requires `ROVER_SYSTEM_USE_GPS` **off**. |
+| `amcl` | `<namespace>/map` | `nav2_amcl` | **Indoors.** Matches the lidar scan against a static map. Needs a real map (build one in `slam` mode first), `ROVER_SYSTEM_USE_LIDAR=true`, and `ROVER_PLATFORM_GPS_MAP_TF=false`. |
 | `indoor` | `<namespace>/map` | `slam_toolbox` while mapping, `nav2_amcl` on a saved map | **Indoors, driven from the web UI.** [`rover_indoor_nav_manager`](../rover_indoor_nav_manager/README.md) switches between the two at runtime and keeps maps, places and the last pose in `/maps`. `map` and `initial_pose_*` are ignored. Same requirements as `amcl`. |
 
 > **Do not use `gps` mode indoors.** It does not fail loudly, it fails silently.
@@ -262,7 +262,7 @@ side is the existing `slam` mode and `map_autosaver_node` — nothing new.
 ### 1. Map the space (once per site)
 
 ```bash
-# ROVER_LOCALIZATION_SOURCE=slam, ROVER_USE_GPS=false, ROVER_USE_LIDAR=true
+# ROVER_ORCH_LOCALIZATION_SOURCE=slam, ROVER_SYSTEM_USE_GPS=false, ROVER_SYSTEM_USE_LIDAR=true
 ros2 launch rover_navigation bringup.launch.py \
   use_sim_time:=False localization_source:=slam \
   map:=$(ros2 pkg prefix rover_navigation)/share/rover_navigation/map/empty_world.yaml
@@ -287,7 +287,7 @@ ros2 launch rover_navigation bringup.launch.py \
   use_sim_time:=False localization_source:=amcl map:=/maps/map.yaml
 ```
 
-On the rover set `ROVER_LOCALIZATION_SOURCE=amcl` and `ROVER_NAV_MAP=/maps/map.yaml`;
+On the rover set `ROVER_ORCH_LOCALIZATION_SOURCE=amcl` and `ROVER_ORCH_NAV_MAP=/maps/map.yaml`;
 changing a balenaCloud variable restarts the container, which re-reads them.
 
 ### Initial pose
@@ -301,7 +301,7 @@ find its pose once while still in `slam` mode, parked where it will start:
 ros2 run tf2_ros tf2_echo rover/map rover/base_link
 ```
 
-and put translation x/y and yaw into `ROVER_AMCL_INITIAL_POSE_{X,Y,YAW}`.
+and put translation x/y and yaw into `ROVER_ORCH_AMCL_INITIAL_POSE_{X,Y,YAW}`.
 
 ### If AMCL diverges
 
@@ -396,7 +396,7 @@ and wait for it to settle before any test), `AUTOMATIC` drive mode, rover on its
 - **Never publish a static `map -> odom`.** Earlier revisions of this README suggested
   `static_transform_publisher --frame-id map --child-frame-id odom` to make the global
   costmap's static layer usable. **Do not do that.** Since GPS fusion was integrated,
-  `rover_ekf_global_node` (started by `rover_localization` whenever `ROVER_USE_GPS` is
+  `rover_ekf_global_node` (started by `rover_localization` whenever `ROVER_SYSTEM_USE_GPS` is
   set) publishes `<namespace>/map -> <namespace>/odom` at 50 Hz. A static publisher would be a
   second owner of that transform and the two would fight. Use `localization_source:=gps`
   instead — see [Localization source](#localization-source).
@@ -411,17 +411,17 @@ and wait for it to settle before any test), `AUTOMATIC` drive mode, rover on its
   the raw `rslidar_points` cloud. An obstacle entirely below or above that slice is not marked.
 - **The local costmap stays empty and the rover drives into things.** Check, in order:
   `ros2 topic hz /<ns>/scan` (is `rover_rs16_lidar` up? It runs in `rover-a1-sensors` with
-  `ROVER_USE_LIDAR=true`; see `/tmp/rover_sensors.log` there); then the `stvl_layer`'s `min_z`. `min_z`/`max_z`
+  `ROVER_SYSTEM_USE_LIDAR=true`; see `/tmp/rover_sensors.log` there); then the `stvl_layer`'s `min_z`. `min_z`/`max_z`
   are in the **global** frame, not the sensor frame. `lidar_link` sits
-  `ROVER_LIDAR_LOCALIZATION_Z` above `body_link` and that variable defaults to `0.0`, so a
+  `ROVER_SYSTEM_MOUNT_LIDAR_Z` above `body_link` and that variable defaults to `0.0`, so a
   scan ring lands near z=0 — the upstream STVL default of `min_z: 0.1` silently discarded
-  every single point. It is `-0.5` here. Raise `ROVER_LIDAR_LOCALIZATION_Z` to the real mount
+  every single point. It is `-0.5` here. Raise `ROVER_SYSTEM_MOUNT_LIDAR_Z` to the real mount
   height rather than re-tuning `min_z` blindly.
 - **AMCL never converges / the pose does not track.** In order of likelihood: the map is
   `empty_world.yaml` (every particle scores identically on 50 x 50 m of free space -- build a
-  real one in `slam` mode); the lidar is off (`ROVER_USE_LIDAR=true`, check
+  real one in `slam` mode); the lidar is off (`ROVER_SYSTEM_USE_LIDAR=true`, check
   `ros2 topic hz /<ns>/scan`); two processes own `map -> odom` (see above); the rover did not
-  start where `initial_pose` says it did. `ROVER_LIDAR_LOCALIZATION_Z` matters here too -- it
+  start where `initial_pose` says it did. `ROVER_SYSTEM_MOUNT_LIDAR_Z` matters here too -- it
   defaults to `0.0`, and the same mount height that breaks STVL's `min_z` also skews the scan
   geometry AMCL matches against. Set it before retuning anything.
 - **Along-corridor drift in `amcl` mode.** Long featureless corridors give AMCL no scan
@@ -458,7 +458,7 @@ and wait for it to settle before any test), `AUTOMATIC` drive mode, rover on its
   `ros2 topic echo /<ns>/diagnostics` for the status `rover_rs16_lidar_node: Lidar status` — `ERROR`
   is a cloud timeout, `STALE` is "no data yet", and a status older than the node's `timeout`
   (3 s) also fails. Unlike `IsMotionLocked`, this guard passes when the status has **never**
-  been seen, so that `ROVER_USE_LIDAR=false` operation keeps working; set
+  been seen, so that `ROVER_SYSTEM_USE_LIDAR=false` operation keeps working; set
   `require_present="true"` in both tree XMLs on a rover that always carries a lidar.
 - **`plugin_lib_names` semantics.** `bt_navigator` is configured with
   `plugin_lib_names: [is_motion_locked_bt_node]`, on the assumption that Nav 2 loads its

@@ -46,8 +46,8 @@ def generate_launch_description():
     observation_topic = LaunchConfiguration("observation_topic")
     camera_depth_topic = LaunchConfiguration("camera_depth_topic")
     # Local costmap sources: the lidar scan always, the D435i depth cloud only when asked for
-    # (use_camera, ROVER_NAV_USE_CAMERA). Not ROVER_USE_CAMERA: that only starts the camera
-    # (rover-a1-sensors), which follow-me and perception use without Nav 2 relying on it.
+    # (use_camera, ROVER_ORCH_NAV_USE_CAMERA). Not ROVER_SYSTEM_USE_CAMERA: that only starts the
+    # camera (rover-a1-sensors), which follow-me and perception use without Nav 2 relying on it.
     use_camera = LaunchConfiguration("use_camera")
     observation_sources = PythonExpression(
         [
@@ -94,7 +94,7 @@ def generate_launch_description():
     declare_namespace_arg = DeclareLaunchArgument(
         "namespace",
         default_value=EnvironmentVariable(
-            "ROVER_NAMESPACE",
+            "ROVER_SYSTEM_NAMESPACE",
             default_value=EnvironmentVariable("ROBOT_NAMESPACE", default_value=""),
         ),
         description="Add namespace to all launched nodes.",
@@ -109,10 +109,11 @@ def generate_launch_description():
     )
     declare_use_camera_arg = DeclareLaunchArgument(
         "use_camera",
-        default_value=EnvironmentVariable("ROVER_NAV_USE_CAMERA", default_value="false"),
+        default_value=EnvironmentVariable("ROVER_ORCH_NAV_USE_CAMERA", default_value="false"),
         description=(
             "Add the RealSense depth cloud as a local-costmap observation source "
-            "(ROVER_NAV_USE_CAMERA). The camera itself is ROVER_USE_CAMERA, in rover-a1-sensors."
+            "(ROVER_ORCH_NAV_USE_CAMERA). The camera itself is ROVER_SYSTEM_USE_CAMERA, in "
+            "rover-a1-sensors."
         ),
     )
     declare_camera_depth_topic_arg = DeclareLaunchArgument(
@@ -145,15 +146,15 @@ def generate_launch_description():
             "\t  costmap's static layer will not line up with the map. Default; matches the\n"
             "\t  behaviour of this package before GPS fusion existed.\n"
             "\t- 'gps': the global frame is <namespace>/map, published by rover_ekf_global_node\n"
-            "\t  (rover_localization, started when ROVER_USE_GPS is set). Do NOT publish a\n"
-            "\t  static map -> odom and do NOT enable AMCL in this mode.\n"
+            "\t  (rover_localization, started when ROVER_SYSTEM_USE_GPS is set). Do NOT publish\n"
+            "\t  a static map -> odom and do NOT enable AMCL in this mode.\n"
             "\t- 'slam': the global frame is <namespace>/map, published by slam_toolbox.\n"
-            "\t  Requires ROVER_USE_GPS to be off.\n"
+            "\t  Requires ROVER_SYSTEM_USE_GPS to be off.\n"
             "\t- 'amcl': the global frame is <namespace>/map, published by nav2_amcl,\n"
             "\t  which matches the lidar scan against the static map from map_server.\n"
             "\t  Indoor mode. Needs a real map (map:=, NOT the default empty_world.yaml -\n"
             "\t  every particle scores identically on an empty map and AMCL never\n"
-            "\t  converges), ROVER_USE_LIDAR=true, and ROVER_GPS_PUBLISH_MAP_TF=false.\n"
+            "\t  converges), ROVER_SYSTEM_USE_LIDAR=true, and ROVER_PLATFORM_GPS_MAP_TF=false.\n"
             "\t- 'indoor': the global frame is <namespace>/map, and rover_indoor_nav_manager\n"
             "\t  owns localization at runtime: it runs slam_toolbox while a map is being\n"
             "\t  built and map_server + AMCL on a saved map (from /maps), and switches\n"
@@ -165,7 +166,7 @@ def generate_launch_description():
     )
     declare_initial_pose_x_arg = DeclareLaunchArgument(
         "initial_pose_x",
-        default_value=EnvironmentVariable("ROVER_AMCL_INITIAL_POSE_X", default_value="0.0"),
+        default_value=EnvironmentVariable("ROVER_ORCH_AMCL_INITIAL_POSE_X", default_value="0.0"),
         description=(
             "X of the pose AMCL is seeded with at startup, in <namespace>/map. Only used "
             "with localization_source:=amcl. The default 0.0 is correct only when the map "
@@ -174,12 +175,12 @@ def generate_launch_description():
     )
     declare_initial_pose_y_arg = DeclareLaunchArgument(
         "initial_pose_y",
-        default_value=EnvironmentVariable("ROVER_AMCL_INITIAL_POSE_Y", default_value="0.0"),
+        default_value=EnvironmentVariable("ROVER_ORCH_AMCL_INITIAL_POSE_Y", default_value="0.0"),
         description="Y of AMCL's startup pose. See initial_pose_x.",
     )
     declare_initial_pose_yaw_arg = DeclareLaunchArgument(
         "initial_pose_yaw",
-        default_value=EnvironmentVariable("ROVER_AMCL_INITIAL_POSE_YAW", default_value="0.0"),
+        default_value=EnvironmentVariable("ROVER_ORCH_AMCL_INITIAL_POSE_YAW", default_value="0.0"),
         description="Yaw (rad) of AMCL's startup pose. See initial_pose_x.",
     )
     declare_use_composition_arg = DeclareLaunchArgument(

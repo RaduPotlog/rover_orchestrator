@@ -46,9 +46,9 @@ namespace rover_navigation
  *   - status never seen at all      -> SUCCESS, unless `require_present` is true.
  *
  * That last rule is deliberately NOT fail-safe, and differs from IsMotionLocked. The rover
- * runs without a lidar whenever ROVER_USE_LIDAR is false, and rover_rs16_lidar sits behind a 10 s
- * TimerAction in rover_bringup even when it is true. Failing closed on "never seen" would
- * make navigation unusable in both cases. Set require_present="true" on a rover that is
+ * runs without a lidar whenever ROVER_SYSTEM_USE_LIDAR is false, and rover_rs16_lidar sits
+ * behind a 10 s TimerAction in rover_bringup even when it is true. Failing closed on "never
+ * seen" would make navigation unusable in both cases. Set require_present="true" on a rover that is
  * always fitted with a lidar to get the strict behaviour.
  */
 class IsLidarHealthy : public BT::ConditionNode
@@ -81,7 +81,7 @@ public:
       BT::InputPort<bool>(
         "require_present", false,
         "When true, a status that has never been seen counts as unhealthy. Leave false to "
-        "keep no-lidar (ROVER_USE_LIDAR=false) operation working."),
+        "keep no-lidar (ROVER_SYSTEM_USE_LIDAR=false) operation working."),
     };
   }
 

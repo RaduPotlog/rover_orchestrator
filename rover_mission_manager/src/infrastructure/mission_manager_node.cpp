@@ -243,8 +243,8 @@ domain::RoverConditions MissionManagerNode::currentConditions() const
     conditions.battery_fraction = battery_fraction_.load();
 
     // Deliberately NOT fail-safe on "never seen", unlike the motion lock: the rover runs
-    // without a lidar whenever ROVER_USE_LIDAR is false, and rover_rs16_lidar sits behind a 10 s
-    // TimerAction in rover_bringup even when it is true. require_lidar is the opt-in.
+    // without a lidar whenever ROVER_SYSTEM_USE_LIDAR is false, and rover_rs16_lidar sits behind
+    // a 10 s TimerAction in rover_bringup even when it is true. require_lidar is the opt-in.
     if (!lidar_status_received_) {
         conditions.lidar_health = domain::SensorHealth::kUnknown;
     } else {

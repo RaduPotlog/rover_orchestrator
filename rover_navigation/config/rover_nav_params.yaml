@@ -244,7 +244,7 @@
           transform_tolerance: 0.2
           mapping_mode: false
           map_save_duration: 60.0
-          # laserscan, plus depth_camera with use_camera / ROVER_NAV_USE_CAMERA (bringup.launch.py).
+          # laserscan, plus depth_camera with use_camera / ROVER_ORCH_NAV_USE_CAMERA (bringup.launch.py).
           observation_sources: <observation_sources>
           # <ns>/scan, projected from the RS16 cloud by rover_rs16_lidar.
           laserscan:
@@ -267,7 +267,7 @@
             voxel_min_points: 1
             clear_after_reading: true
             # min_z/max_z are in the global frame, not the sensor frame. lidar_link sits at
-            # ROVER_LIDAR_LOCALIZATION_Z above body_link (default 0.0), so a scan ring lands
+            # ROVER_SYSTEM_MOUNT_LIDAR_Z above body_link (default 0.0), so a scan ring lands
             # near z=0 and the upstream default of 0.1 filtered out every single point.
             max_z: 2.0
             min_z: -0.5
@@ -277,7 +277,7 @@
             decay_acceleration: 15.0
             model_type: 0
           # RealSense D435i depth cloud from rover_perception (depth_image_proc). Only listed in
-          # observation_sources with ROVER_NAV_USE_CAMERA=true; the local costmap only, so the
+          # observation_sources with ROVER_ORCH_NAV_USE_CAMERA=true; the local costmap only, so the
           # global map is not scribbled on by a narrow forward cone.
           depth_camera:
             data_type: PointCloud2
@@ -376,7 +376,7 @@
             voxel_min_points: 1
             clear_after_reading: true
             # min_z/max_z are in the global frame, not the sensor frame. lidar_link sits at
-            # ROVER_LIDAR_LOCALIZATION_Z above body_link (default 0.0), so a scan ring lands
+            # ROVER_SYSTEM_MOUNT_LIDAR_Z above body_link (default 0.0), so a scan ring lands
             # near z=0 and the upstream default of 0.1 filtered out every single point.
             max_z: 2.0
             min_z: -0.5
@@ -615,8 +615,8 @@
   ### LOCALIZATION ###
 
   # Only used when bringup.launch.py is started with localization_source:=amcl. AMCL then
-  # owns <namespace>/map -> <namespace>/odom, so ROVER_USE_GPS must be off (or
-  # ROVER_GPS_PUBLISH_MAP_TF=false) and slam_toolbox must not run: all three publish that
+  # owns <namespace>/map -> <namespace>/odom, so ROVER_SYSTEM_USE_GPS must be off (or
+  # ROVER_PLATFORM_GPS_MAP_TF=false) and slam_toolbox must not run: all three publish that
   # same transform, and two owners fight rather than error.
   amcl:
     ros__parameters:
@@ -646,7 +646,7 @@
       # Seeded from a known pose rather than scattering particles over the map:
       # reinitialize_global_localization converges slowly and, in corridors and repeated
       # bays, can settle into the wrong self-similar hypothesis. initial_pose is overridden
-      # per site by localization.launch.py from ROVER_AMCL_INITIAL_POSE_{X,Y,YAW}; the 0,0,0
+      # per site by localization.launch.py from ROVER_ORCH_AMCL_INITIAL_POSE_{X,Y,YAW}; the 0,0,0
       # below is correct only when the map origin is where the rover parks.
       set_initial_pose: true
       # Every activation re-seeds from initial_pose instead of the last estimate, so startup
@@ -730,7 +730,7 @@
 
   ### SLAM ###
   # Only used when bringup.launch.py is started with localization_source:=slam. slam_toolbox
-  # then owns <namespace>/map -> <namespace>/odom, so ROVER_USE_GPS must be off: the
+  # then owns <namespace>/map -> <namespace>/odom, so ROVER_SYSTEM_USE_GPS must be off: the
   # global EKF (rover_ekf_global_node) publishes the same transform.
 
   map_saver:

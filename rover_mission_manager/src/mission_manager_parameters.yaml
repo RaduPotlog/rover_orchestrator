@@ -104,7 +104,7 @@ mission_manager:
     default_value: false
     description: >
       When true, a lidar status that has never been seen holds the mission. Leave false on a
-      rover that may run with ROVER_USE_LIDAR=false, or the mission would never start.
+      rover that may run with ROVER_SYSTEM_USE_LIDAR=false, or the mission would never start.
 
   navigate_to_pose_action:
     type: string

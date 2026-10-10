@@ -41,7 +41,7 @@ export ROS_DISTRO=lyrical
 
 # The namespace the rover runs under. Both computers must agree, otherwise Nav 2 publishes
 # /nav_cmd_vel_stamped while the rover's mux listens on /rover/nav_cmd_vel_stamped.
-export ROVER_NAMESPACE=rover
+export ROVER_SYSTEM_NAMESPACE=rover
 ```
 
 ### Build

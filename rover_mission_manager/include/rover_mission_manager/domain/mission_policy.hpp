@@ -74,7 +74,7 @@ enum class MissionAction
  * A dead lidar is also a *hold*, for the same reason as the lock: Nav 2's costmaps stop being
  * trustworthy without it, but the sensor can come back, and the mission should resume on the
  * same waypoint when it does. kUnknown only holds when @p require_lidar is set, so a rover
- * running with ROVER_USE_LIDAR=false is not permanently held.
+ * running with ROVER_SYSTEM_USE_LIDAR=false is not permanently held.
  *
  * Leaving AUTOMATIC is a *cancel*: the operator switched modes or took over with the
  * joystick, and the rover must not resume the mission on its own when AUTOMATIC comes back.

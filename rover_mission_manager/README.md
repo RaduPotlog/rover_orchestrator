@@ -127,7 +127,7 @@ usable (a sparse cloud or a low rate degrades the costmaps but does not invalida
 `ERROR`, `STALE` and a status older than `lidar_health_timeout` do not.
 
 Unlike the motion lock, this is **not** fail-safe on "never heard": `require_lidar` defaults to
-`false` so a rover booted with `ROVER_USE_LIDAR=false` still runs missions, and so that
+`false` so a rover booted with `ROVER_SYSTEM_USE_LIDAR=false` still runs missions, and so that
 a lidar driver that starts after the mission manager (it runs in a separate container,
 `rover-a1-sensors`) does not block the first mission. Set
 `require_lidar: true` on a rover that always carries one. The same reasoning and the same

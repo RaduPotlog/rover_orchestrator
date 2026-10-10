@@ -15,20 +15,20 @@
 # stops them in order. Output goes to one log file per part.
 #
 # Environment (all optional):
-#   ROVER_NAMESPACE      rover namespace                        (default: rover)
-#   ROVER_SIM_MAPS_DIR   where SLAM/indoor maps are written     (default: ~/rover_sim_maps)
-#   ROVER_SIM_LOG_DIR    where the per-run log folders go       (default: ~/.ros/rover_sim)
-#   ROVER_SIM_RVIZ       start RViz with the simulation         (default: True)
-#   ROVER_SIM_HEADLESS   Gazebo without its GUI                 (default: False)
-#   ROVER_SIM_TIMEOUT    seconds to wait for each part          (default: 180)
-#   ROVER_SIM_SHIM_TURN_RATE  rotation shim turn rate in rad/s  (default: 0.7, rover: 1.5)
+#   ROVER_SYSTEM_NAMESPACE    rover namespace                     (default: rover)
+#   ROVER_SIM_MAPS_DIR        where SLAM/indoor maps are written  (default: ~/rover_sim_maps)
+#   ROVER_SIM_LOG_DIR         where the per-run log folders go    (default: ~/.ros/rover_sim)
+#   ROVER_SIM_RVIZ            start RViz with the simulation      (default: True)
+#   ROVER_SIM_HEADLESS        Gazebo without its GUI              (default: False)
+#   ROVER_SIM_TIMEOUT         seconds to wait for each part       (default: 180)
+#   ROVER_SIM_SHIM_TURN_RATE  rotation shim turn rate in rad/s    (default: 0.7, rover: 1.5)
 
 set -o pipefail
 
 SIM_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SIM_WS_DIR="$(cd "$SIM_SCRIPT_DIR/../../../.." && pwd)"
 
-NS="${ROVER_NAMESPACE:-rover}"
+NS="${ROVER_SYSTEM_NAMESPACE:-rover}"
 MAPS_DIR="${ROVER_SIM_MAPS_DIR:-$HOME/rover_sim_maps}"
 RVIZ="${ROVER_SIM_RVIZ:-True}"
 HEADLESS="${ROVER_SIM_HEADLESS:-False}"
@@ -195,9 +195,9 @@ $(pgrep -af "$running_re")"
   # one; once the Nav 2 component container stops accepting those connections, nothing started
   # afterwards can reach Nav 2's services or actions.
   export ZENOH_CONFIG_OVERRIDE="$SIM_ZENOH_CONFIG"
-  export ROVER_NAMESPACE="$NS"
+  export ROVER_SYSTEM_NAMESPACE="$NS"
   # Only 'gps' mode wants the global EKF; every mode here owns map -> odom itself.
-  export ROVER_USE_GPS=false ROVER_GPS_PUBLISH_MAP_TF=false
+  export ROVER_SYSTEM_USE_GPS=false ROVER_PLATFORM_GPS_MAP_TF=false
   # A ros2 daemon started from a shell with a different Zenoh config answers stale graphs.
   ros2 daemon stop > /dev/null 2>&1
 

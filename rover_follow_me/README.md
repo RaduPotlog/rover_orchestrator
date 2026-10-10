@@ -19,7 +19,7 @@ any Nav 2 motion. Nothing here publishes `cmd_vel`.
 ```
 
 It runs in `rover-a1-orchestrator`, next to Nav 2, the mission manager and drive mode it
-coordinates with. `ROVER_START_FOLLOW_ME=true` starts both halves: fmoc in `rover-a1-sensors`,
+coordinates with. `ROVER_SYSTEM_FOLLOW_ME_ENABLE=true` starts both halves: fmoc in `rover-a1-sensors`,
 this node in the orchestrator (`rover_docker/README.md`, "Follow-me").
 
 Clean Architecture: `domain/` (start/stop rules) and `application/` (the follow executor and its
@@ -73,18 +73,18 @@ ros2 service call /rover/follow_me/start std_srvs/srv/Trigger
 
 | Argument | Default |
 |----------|---------|
-| `namespace` | `$ROVER_NAMESPACE` |
+| `namespace` | `$ROVER_SYSTEM_NAMESPACE` |
 | `params_file` | `config/follow_me.yaml` (`/**/follow_me:`) |
 | `use_sim_time` | `False` |
 | `log_level` | `info` |
 
 ### Simulation
 
-Needs the Gazebo depth camera (`ROVER_USE_CAMERA=true`), Nav 2 with the Following server
+Needs the Gazebo depth camera (`ROVER_SYSTEM_USE_CAMERA=true`), Nav 2 with the Following server
 (`ros-lyrical-opennav-following`), the mission manager and drive mode in AUTOMATIC:
 
 ```bash
-export ROVER_USE_CAMERA=true
+export ROVER_SYSTEM_USE_CAMERA=true
 ros2 launch rover_gazebo simulation.launch.py \
   gz_world:=$(ros2 pkg prefix rover_world)/share/rover_world/world/follow_me_world.sdf
 # Nav 2 (rover_navigation bringup) + drive mode + mission manager, then drive mode AUTOMATIC

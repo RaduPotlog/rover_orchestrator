@@ -122,13 +122,13 @@ ros2 launch rover_drive_mode rover_drive_mode.launch.py namespace:=rover
 
 | Argument | Default | Notes |
 |---|---|---|
-| `namespace` | `$ROVER_NAMESPACE` | |
-| `default_mode` | `$ROVER_DRIVE_DEFAULT_MODE` or `assisted` | `manual` or `assisted` |
+| `namespace` | `$ROVER_SYSTEM_NAMESPACE` | |
+| `default_mode` | `$ROVER_ORCH_DRIVE_DEFAULT_MODE` or `assisted` | `manual` or `assisted` |
 | `use_teleop_guard` | `True` | `False` skips the teleop collision monitor; ASSISTED is then refused |
 | `use_sim_time` | `False` | `True` in Gazebo |
 
-In `rover_docker` it runs in `rover-a1-orchestrator` whenever `ROVER_START_DRIVE_MODE=true`
-(default), independent of `ROVER_START_NAVIGATION`: without it the drive UI cannot drive.
+In `rover_docker` it runs in `rover-a1-orchestrator` whenever `ROVER_ORCH_DRIVE_MODE=true`
+(default), independent of `ROVER_ORCH_NAVIGATION`: without it the drive UI cannot drive.
 
 ```bash
 ros2 topic echo /rover/drive_mode
